@@ -44,7 +44,7 @@ describe('every fixture runs in CI', () => {
 })
 
 describe('fixture validation catches data entry errors before they waste an afternoon', () => {
-  const base = (): GroundTruthFixture => structuredClone(fixtureById('gt-002-club-ladder'))
+  const base = (): GroundTruthFixture => structuredClone(fixtureById('gt-002-club-league-entanglement'))
 
   it('accepts a well formed fixture', () => {
     expect(validateFixture(base())).toEqual([])
@@ -52,9 +52,9 @@ describe('fixture validation catches data entry errors before they waste an afte
 
   it('rejects per player chemistry that does not sum to the stated total', () => {
     const fixture = base()
-    fixture.displayedChemistry = 28 // the eleven values still add to 29
+    fixture.displayedChemistry = 21 // the eleven values still add to 22
     const problems = validateFixture(fixture)
-    expect(problems.join(' ')).toContain('sums to 29 but the squad total is recorded as 28')
+    expect(problems.join(' ')).toContain('sums to 22 but the squad total is recorded as 21')
   })
 
   it('rejects the wrong number of per player values', () => {
@@ -65,7 +65,7 @@ describe('fixture validation catches data entry errors before they waste an afte
 
   it('rejects a per player value outside 0 to 3', () => {
     const fixture = base()
-    fixture.displayedPlayerChemistry = [4, 2, 2, 2, 3, 3, 3, 3, 3, 3, 1]
+    fixture.displayedPlayerChemistry = [4, 1, 2, 2, 2, 3, 3, 3, 3, 1, 1]
     expect(validateFixture(fixture).join(' ')).toContain('outside 0 to 3')
   })
 

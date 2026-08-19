@@ -84,8 +84,8 @@
       "pendingRef": "P-001"
     },
     {
-      "id": "gt-002-club-ladder",
-      "description": "Club ladder probe. Four players share Club Alpha, seven share Club Beta, and nothing else is shared by anyone. One reading confirms two steps at once: the four should sit at +2 and the seven at +3. If the club ladder is 2/4/7 as recorded, the squad chemistry is 29.",
+      "id": "gt-002-club-league-entanglement",
+      "description": "Club groups of 2, 3 and 4 in three different leagues, plus a pair sharing only a nation. Clubmates ALWAYS share a league, so a club group of n is also a league group of n, and the two ladders can only ever be read together. Sizes chosen so no player reaches the 3 point cap by accident, since a capped player reveals nothing. Expected per player 1,1,2,2,2,3,3,3,3,1,1 for a total of 22.",
       "formation": "4-4-2",
       "players": [
         {
@@ -96,8 +96,8 @@
           "positions": [
             "GK"
           ],
-          "nation": "Nation 0",
-          "league": "League 0",
+          "nation": "Nation 1",
+          "league": "League A",
           "club": "Club Alpha",
           "cardType": "rare",
           "isWomens": false
@@ -110,8 +110,8 @@
           "positions": [
             "LB"
           ],
-          "nation": "Nation 1",
-          "league": "League 1",
+          "nation": "Nation 2",
+          "league": "League A",
           "club": "Club Alpha",
           "cardType": "rare",
           "isWomens": false
@@ -124,9 +124,9 @@
           "positions": [
             "CB"
           ],
-          "nation": "Nation 2",
-          "league": "League 2",
-          "club": "Club Alpha",
+          "nation": "Nation 3",
+          "league": "League B",
+          "club": "Club Beta",
           "cardType": "rare",
           "isWomens": false
         },
@@ -138,9 +138,9 @@
           "positions": [
             "CB"
           ],
-          "nation": "Nation 3",
-          "league": "League 3",
-          "club": "Club Alpha",
+          "nation": "Nation 4",
+          "league": "League B",
+          "club": "Club Beta",
           "cardType": "rare",
           "isWomens": false
         },
@@ -152,8 +152,8 @@
           "positions": [
             "RB"
           ],
-          "nation": "Nation 4",
-          "league": "League 4",
+          "nation": "Nation 5",
+          "league": "League B",
           "club": "Club Beta",
           "cardType": "rare",
           "isWomens": false
@@ -166,9 +166,9 @@
           "positions": [
             "LM"
           ],
-          "nation": "Nation 5",
-          "league": "League 5",
-          "club": "Club Beta",
+          "nation": "Nation 6",
+          "league": "League C",
+          "club": "Club Gamma",
           "cardType": "rare",
           "isWomens": false
         },
@@ -180,9 +180,9 @@
           "positions": [
             "CM"
           ],
-          "nation": "Nation 6",
-          "league": "League 6",
-          "club": "Club Beta",
+          "nation": "Nation 7",
+          "league": "League C",
+          "club": "Club Gamma",
           "cardType": "rare",
           "isWomens": false
         },
@@ -194,9 +194,9 @@
           "positions": [
             "CM"
           ],
-          "nation": "Nation 7",
-          "league": "League 7",
-          "club": "Club Beta",
+          "nation": "Nation 8",
+          "league": "League C",
+          "club": "Club Gamma",
           "cardType": "rare",
           "isWomens": false
         },
@@ -208,9 +208,9 @@
           "positions": [
             "RM"
           ],
-          "nation": "Nation 8",
-          "league": "League 8",
-          "club": "Club Beta",
+          "nation": "Nation 9",
+          "league": "League C",
+          "club": "Club Gamma",
           "cardType": "rare",
           "isWomens": false
         },
@@ -222,9 +222,9 @@
           "positions": [
             "ST"
           ],
-          "nation": "Nation 9",
-          "league": "League 9",
-          "club": "Club Beta",
+          "nation": "Shared Nation",
+          "league": "League D",
+          "club": "Club Delta",
           "cardType": "rare",
           "isWomens": false
         },
@@ -236,27 +236,27 @@
           "positions": [
             "ST"
           ],
-          "nation": "Nation 10",
-          "league": "League 10",
-          "club": "Club Beta",
+          "nation": "Shared Nation",
+          "league": "League E",
+          "club": "Club Epsilon",
           "cardType": "rare",
           "isWomens": false
         }
       ],
       "displayedRating": 84,
-      "displayedChemistry": 29,
+      "displayedChemistry": 22,
       "displayedPlayerChemistry": [
+        1,
+        1,
         2,
         2,
         2,
-        2,
         3,
         3,
         3,
         3,
-        3,
-        3,
-        3
+        1,
+        1
       ],
       "pending_verification": true,
       "pendingRef": "P-005",
@@ -264,7 +264,7 @@
         "squadRating",
         "chemistry"
       ],
-      "source": "PENDING. Constructed from the recorded club ladder, not observed. Expected values follow from club 2/4/7. Designed so a single in game reading confirms or refutes the +2 and +3 steps together."
+      "source": "PENDING. Constructed from the recorded ladders, not observed. Replaces an earlier version that gave every player a unique league, which no real squad can do: four clubmates are four league mates. That fixture expected 29 and described a squad that cannot exist."
     },
     {
       "id": "gt-003-league-asymmetry",

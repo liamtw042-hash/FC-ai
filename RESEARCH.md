@@ -228,6 +228,43 @@ Binding conditions attached to the approval:
 - `alwaysMaxChem` covers Icons, Heroes and FoF Captains, and remains gated on the
   positioning rule. An Icon out of position is still 0, not 3.
 
+### 2.3 Club and league are entangled, and it limits what can be verified
+
+Found while designing the ground truth probes, and it changed the design.
+
+**Clubmates are always league mates.** A club belongs to exactly one league, so a
+club group of n is also a league group of n. The club ladder and the league ladder
+can never be read separately for ordinary cards. Only Icons, who have no club and
+no league, and Heroes, who have no club, break the pairing, and neither helps here.
+
+Running the engine over club group sizes with the pairing respected:
+
+| Clubmates | Club | League | Chemistry |
+|---|---|---|---|
+| 2 | +1 | 0 | **1** |
+| 3 | +1 | +1 | **2** |
+| 4 | +2 | +1 | **3** |
+| 5 | +2 | +2 | 3, capped |
+| 6 | +2 | +2 | 3, capped |
+| 7 | +3 | +2 | 3, capped |
+| 8 | +3 | +3 | 3, capped |
+
+**The club +3 at 7 step has no observable consequence.** By four clubmates a player
+already holds club +2 plus league +1, which is the cap. Everything from four upward
+reads 3 whatever the club ladder does above it. Whether that step is 7 or 6 or 9
+cannot change any squad's chemistry, so it is not worth a reading and no probe
+attempts one.
+
+**What is observable, and where:** club +1 at 2 (a pair scores 1, not 0), that club
+does not step up at 3 (a trio scores 2, not 3), league +1 at 3 (a trio scores 2, not
+1), that league does not fire at 2 (a pair scores 1, not 2), and club +2 at 4 (a
+quartet scores 3, not 2). All five are in `gt-002`.
+
+This also killed the first version of `gt-002`, which gave every player a unique
+league in order to isolate the club ladder. That squad cannot exist. The engine
+scored it 29 correctly, but 29 was the answer to a question the game will never be
+asked. The replacement respects the pairing and expects 22.
+
 ### 2.2 APPROVED: club alias table
 
 "Women's players link to men's players by club and nation only, never league" is correct
