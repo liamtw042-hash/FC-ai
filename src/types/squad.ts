@@ -59,14 +59,28 @@ export interface SquadEvaluation {
   chemistry: ChemistryResult
 }
 
-/** One player row in a ground truth fixture. */
+/**
+ * One player row in a ground truth fixture.
+ *
+ * Fixtures are SELF CONTAINED. They carry the card facts they need rather than
+ * pointing at a defId in the player database. A fixture is a permanent record of
+ * what the game displayed on a given day, and it must not stop working because
+ * the database was refreshed or because a defId scheme changed. defId is kept as
+ * an optional cross reference only.
+ */
 export interface GroundTruthPlayer {
-  /** Null for a fixture that only exercises the rating path, where identity is irrelevant. */
   defId: string | null
   name: string | null
   rating: number
   /** The slot this player was placed in. */
   slotPosition: string
+  /** Card facts. Required for a fixture that verifies chemistry, omitted for rating only. */
+  positions?: string[]
+  nation?: string
+  league?: string | null
+  club?: string | null
+  cardType?: string
+  isWomens?: boolean
 }
 
 /**
@@ -98,6 +112,8 @@ export interface GroundTruthFixture {
    * in game reading. Run and reported, visibly flagged, not treated as ground truth.
    */
   pending_verification?: boolean
+  /** PENDING.md entry id whose reading would clear pending_verification. */
+  pendingRef?: string
   /** Which parts of the engine this fixture actually constrains. */
   verifies: ('squadRating' | 'chemistry')[]
   source: string

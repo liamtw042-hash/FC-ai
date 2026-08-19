@@ -64,6 +64,18 @@ export interface CardTypeDefinition {
   isTotw: boolean
   isIcon: boolean
   isHero: boolean
+  /**
+   * False when any part of this row is inferred rather than read off the game.
+   *
+   * Tests prove the code matches the spec. They do not prove the spec matches the
+   * game. This flag is how that distinction stays visible: everything false here
+   * is listed in the startup warning and has an entry in PENDING.md.
+   */
+  verified: boolean
+  /** Where the numbers came from, in one line. */
+  source: string
+  /** PENDING.md entry id that would verify this, when verified is false. */
+  pendingRef?: string
 }
 
 /**
