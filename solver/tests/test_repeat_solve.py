@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import pytest
 
-from fc_ai_solver import NegativeCostError, PoolCard, solve_repeat
+from fc_ai_solver import NegativeCostError, PoolCard, solve_variable_count
 
 FORMATION = ["GK", "LB", "CB", "CB", "RB", "LM", "CM", "CM", "RM", "ST", "ST"]
 
@@ -41,14 +41,14 @@ class TestDeclinesTheMarginalSquad:
         # Enough fodder for three squads, only one required. Every extra squad
         # costs something, so the cheapest answer is to stop at one.
         pool = fodder(33, cost=100)
-        result = solve_repeat(pool, FORMATION, max_squads=3, min_squads=1)
+        result = solve_variable_count(pool, FORMATION, max_squads=3, min_squads=1)
         assert result.squads_built == 1
         assert result.total_cost == 11 * 100
         assert result.proven_optimal
 
     def test_it_still_builds_every_squad_actually_required(self):
         pool = fodder(33, cost=100)
-        result = solve_repeat(pool, FORMATION, max_squads=3, min_squads=3)
+        result = solve_variable_count(pool, FORMATION, max_squads=3, min_squads=3)
         assert result.squads_built == 3
         assert result.total_cost == 33 * 100
 
@@ -56,7 +56,7 @@ class TestDeclinesTheMarginalSquad:
         # Zero cost fodder is the boundary case. Building a second squad gains
         # nothing, and the solver must not do it just because it is allowed to.
         pool = fodder(33, cost=0)
-        result = solve_repeat(pool, FORMATION, max_squads=3, min_squads=1)
+        result = solve_variable_count(pool, FORMATION, max_squads=3, min_squads=1)
         assert result.squads_built == 1
         assert result.total_cost == 0
 
@@ -65,7 +65,7 @@ class TestDeclinesTheMarginalSquad:
         # eleven on squad one and then have no choice on squad two, which happens
         # to give the same answer here, so the check is on the TOTAL.
         pool = fodder(11, cost=10, prefix="cheap") + fodder(22, cost=500, prefix="dear")
-        result = solve_repeat(pool, FORMATION, max_squads=2, min_squads=2)
+        result = solve_variable_count(pool, FORMATION, max_squads=2, min_squads=2)
         assert result.squads_built == 2
         assert result.total_cost == 11 * 10 + 11 * 500
 
@@ -78,7 +78,7 @@ class TestNegativeCostsAreRefused:
         pool = fodder(33, cost=100)
         pool[0] = pool[0].model_copy(update={"cost": -150})
         with pytest.raises(NegativeCostError, match="negative cost"):
-            solve_repeat(pool, FORMATION, max_squads=3, min_squads=1)
+            solve_variable_count(pool, FORMATION, max_squads=3, min_squads=1)
 
     def test_and_here_is_what_would_happen_without_that_guard(self):
         # Demonstration, not a behaviour we ship. With every card priced below
@@ -86,18 +86,18 @@ class TestNegativeCostsAreRefused:
         # which is exactly the trap.
         pool = fodder(33, cost=-100)
         with pytest.raises(NegativeCostError):
-            solve_repeat(pool, FORMATION, max_squads=3, min_squads=1)
+            solve_variable_count(pool, FORMATION, max_squads=3, min_squads=1)
 
         # Same pool shifted by a constant offset, which is what costModel.ts does.
         shifted = [card.model_copy(update={"cost": card.cost + 150}) for card in pool]
-        result = solve_repeat(shifted, FORMATION, max_squads=3, min_squads=1)
+        result = solve_variable_count(shifted, FORMATION, max_squads=3, min_squads=1)
         assert result.squads_built == 1
 
 
 class TestSharedPool:
     def test_no_card_is_used_twice_across_squads(self):
         pool = fodder(22, cost=100)
-        result = solve_repeat(pool, FORMATION, max_squads=2, min_squads=2)
+        result = solve_variable_count(pool, FORMATION, max_squads=2, min_squads=2)
         used = [p.card_id for squad in result.squads for p in squad]
         assert len(used) == 22
         assert len(set(used)) == 22
@@ -107,12 +107,12 @@ class TestSharedPool:
             PoolCard(id="stack", rating=84, positions=list(set(FORMATION)), nation="N",
                      league="L", club="C", card_type="rare", quantity=3, cost=1),
         ] + fodder(30, cost=100)
-        result = solve_repeat(pool, FORMATION, max_squads=3, min_squads=3)
+        result = solve_variable_count(pool, FORMATION, max_squads=3, min_squads=3)
         used = [p.card_id for squad in result.squads for p in squad]
         assert used.count("stack") == 3
 
     def test_says_why_when_the_pool_cannot_field_what_was_asked(self):
         pool = fodder(11, cost=100)
-        result = solve_repeat(pool, FORMATION, max_squads=3, min_squads=2)
+        result = solve_variable_count(pool, FORMATION, max_squads=3, min_squads=2)
         assert result.squads_built == 0
         assert "cannot field 2 squad(s)" in (result.shortfall_reason or "")

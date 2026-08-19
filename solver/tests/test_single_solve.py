@@ -36,7 +36,7 @@ class TestBasics:
         assert response.value_burned == sum(by_id[i].value_burned * n for i, n in counts.items())
 
     def test_rejects_a_formation_that_is_not_eleven_slots(self, club_50):
-        with pytest.raises(ValueError, match="needs 11 slots"):
+        with pytest.raises(ValueError, match="This solver builds 11 card squads"):
             solve(club_50, ["GK", "CB"])
 
 
