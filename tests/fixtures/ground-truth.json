@@ -1,0 +1,29 @@
+{
+  "$comment": "Ground truth captured from the real game. If a fixture fails, the engine is wrong, not the fixture. Entries with pending_verification true carry documented behaviour rather than an observed reading, and are reported as unconfirmed until the flag is cleared.",
+  "fixtures": [
+    {
+      "id": "gt-001-floor-vs-round",
+      "description": "One 95 plus ten 84s. The only case that discriminates floor from round in step 5 of the squad rating formula. SUM 935, AR 85.0, CF 10.0, T 945, 945/11 = 85.909. floor gives 85, round gives 86. None of the four test vectors in the brief reach past the .5 boundary, so without this fixture that step is untested.",
+      "formation": "4-4-2",
+      "players": [
+        { "defId": null, "name": null, "rating": 84, "slotPosition": "GK" },
+        { "defId": null, "name": null, "rating": 84, "slotPosition": "RB" },
+        { "defId": null, "name": null, "rating": 84, "slotPosition": "CB" },
+        { "defId": null, "name": null, "rating": 84, "slotPosition": "CB" },
+        { "defId": null, "name": null, "rating": 84, "slotPosition": "LB" },
+        { "defId": null, "name": null, "rating": 84, "slotPosition": "RM" },
+        { "defId": null, "name": null, "rating": 84, "slotPosition": "CM" },
+        { "defId": null, "name": null, "rating": 84, "slotPosition": "CM" },
+        { "defId": null, "name": null, "rating": 84, "slotPosition": "LM" },
+        { "defId": null, "name": null, "rating": 84, "slotPosition": "ST" },
+        { "defId": null, "name": null, "rating": 95, "slotPosition": "ST" }
+      ],
+      "displayedRating": 85,
+      "displayedChemistry": null,
+      "displayedPlayerChemistry": null,
+      "pending_verification": true,
+      "verifies": ["squadRating"],
+      "source": "PENDING. To be built as a Concept Squad in the web app, no card ownership needed. Expected value 85 is the documented floor behaviour, not an observed reading. If the game shows 86, step 5 of section 4.1 becomes round and this expected value changes to 86."
+    }
+  ]
+}
