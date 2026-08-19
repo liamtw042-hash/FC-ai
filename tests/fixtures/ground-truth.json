@@ -6,24 +6,448 @@
       "description": "One 95 plus ten 84s. The only case that discriminates floor from round in step 5 of the squad rating formula. SUM 935, AR 85.0, CF 10.0, T 945, 945/11 = 85.909. floor gives 85, round gives 86. None of the four test vectors in the brief reach past the .5 boundary, so without this fixture that step is untested.",
       "formation": "4-4-2",
       "players": [
-        { "defId": null, "name": null, "rating": 84, "slotPosition": "GK" },
-        { "defId": null, "name": null, "rating": 84, "slotPosition": "RB" },
-        { "defId": null, "name": null, "rating": 84, "slotPosition": "CB" },
-        { "defId": null, "name": null, "rating": 84, "slotPosition": "CB" },
-        { "defId": null, "name": null, "rating": 84, "slotPosition": "LB" },
-        { "defId": null, "name": null, "rating": 84, "slotPosition": "RM" },
-        { "defId": null, "name": null, "rating": 84, "slotPosition": "CM" },
-        { "defId": null, "name": null, "rating": 84, "slotPosition": "CM" },
-        { "defId": null, "name": null, "rating": 84, "slotPosition": "LM" },
-        { "defId": null, "name": null, "rating": 84, "slotPosition": "ST" },
-        { "defId": null, "name": null, "rating": 95, "slotPosition": "ST" }
+        {
+          "defId": null,
+          "name": null,
+          "rating": 84,
+          "slotPosition": "GK"
+        },
+        {
+          "defId": null,
+          "name": null,
+          "rating": 84,
+          "slotPosition": "RB"
+        },
+        {
+          "defId": null,
+          "name": null,
+          "rating": 84,
+          "slotPosition": "CB"
+        },
+        {
+          "defId": null,
+          "name": null,
+          "rating": 84,
+          "slotPosition": "CB"
+        },
+        {
+          "defId": null,
+          "name": null,
+          "rating": 84,
+          "slotPosition": "LB"
+        },
+        {
+          "defId": null,
+          "name": null,
+          "rating": 84,
+          "slotPosition": "RM"
+        },
+        {
+          "defId": null,
+          "name": null,
+          "rating": 84,
+          "slotPosition": "CM"
+        },
+        {
+          "defId": null,
+          "name": null,
+          "rating": 84,
+          "slotPosition": "CM"
+        },
+        {
+          "defId": null,
+          "name": null,
+          "rating": 84,
+          "slotPosition": "LM"
+        },
+        {
+          "defId": null,
+          "name": null,
+          "rating": 84,
+          "slotPosition": "ST"
+        },
+        {
+          "defId": null,
+          "name": null,
+          "rating": 95,
+          "slotPosition": "ST"
+        }
       ],
       "displayedRating": 85,
       "displayedChemistry": null,
       "displayedPlayerChemistry": null,
       "pending_verification": true,
-      "verifies": ["squadRating"],
-      "source": "PENDING. To be built as a Concept Squad in the web app, no card ownership needed. Expected value 85 is the documented floor behaviour, not an observed reading. If the game shows 86, step 5 of section 4.1 becomes round and this expected value changes to 86."
+      "verifies": [
+        "squadRating"
+      ],
+      "source": "PENDING. To be built as a Concept Squad in the web app, no card ownership needed. Expected value 85 is the documented floor behaviour, not an observed reading. If the game shows 86, step 5 of section 4.1 becomes round and this expected value changes to 86.",
+      "pendingRef": "P-001"
+    },
+    {
+      "id": "gt-002-club-ladder",
+      "description": "Club ladder probe. Four players share Club Alpha, seven share Club Beta, and nothing else is shared by anyone. One reading confirms two steps at once: the four should sit at +2 and the seven at +3. If the club ladder is 2/4/7 as recorded, the squad chemistry is 29.",
+      "formation": "4-4-2",
+      "players": [
+        {
+          "defId": null,
+          "name": "Probe 0",
+          "rating": 84,
+          "slotPosition": "GK",
+          "positions": [
+            "GK"
+          ],
+          "nation": "Nation 0",
+          "league": "League 0",
+          "club": "Club Alpha",
+          "cardType": "rare",
+          "isWomens": false
+        },
+        {
+          "defId": null,
+          "name": "Probe 1",
+          "rating": 84,
+          "slotPosition": "LB",
+          "positions": [
+            "LB"
+          ],
+          "nation": "Nation 1",
+          "league": "League 1",
+          "club": "Club Alpha",
+          "cardType": "rare",
+          "isWomens": false
+        },
+        {
+          "defId": null,
+          "name": "Probe 2",
+          "rating": 84,
+          "slotPosition": "CB",
+          "positions": [
+            "CB"
+          ],
+          "nation": "Nation 2",
+          "league": "League 2",
+          "club": "Club Alpha",
+          "cardType": "rare",
+          "isWomens": false
+        },
+        {
+          "defId": null,
+          "name": "Probe 3",
+          "rating": 84,
+          "slotPosition": "CB",
+          "positions": [
+            "CB"
+          ],
+          "nation": "Nation 3",
+          "league": "League 3",
+          "club": "Club Alpha",
+          "cardType": "rare",
+          "isWomens": false
+        },
+        {
+          "defId": null,
+          "name": "Probe 4",
+          "rating": 84,
+          "slotPosition": "RB",
+          "positions": [
+            "RB"
+          ],
+          "nation": "Nation 4",
+          "league": "League 4",
+          "club": "Club Beta",
+          "cardType": "rare",
+          "isWomens": false
+        },
+        {
+          "defId": null,
+          "name": "Probe 5",
+          "rating": 84,
+          "slotPosition": "LM",
+          "positions": [
+            "LM"
+          ],
+          "nation": "Nation 5",
+          "league": "League 5",
+          "club": "Club Beta",
+          "cardType": "rare",
+          "isWomens": false
+        },
+        {
+          "defId": null,
+          "name": "Probe 6",
+          "rating": 84,
+          "slotPosition": "CM",
+          "positions": [
+            "CM"
+          ],
+          "nation": "Nation 6",
+          "league": "League 6",
+          "club": "Club Beta",
+          "cardType": "rare",
+          "isWomens": false
+        },
+        {
+          "defId": null,
+          "name": "Probe 7",
+          "rating": 84,
+          "slotPosition": "CM",
+          "positions": [
+            "CM"
+          ],
+          "nation": "Nation 7",
+          "league": "League 7",
+          "club": "Club Beta",
+          "cardType": "rare",
+          "isWomens": false
+        },
+        {
+          "defId": null,
+          "name": "Probe 8",
+          "rating": 84,
+          "slotPosition": "RM",
+          "positions": [
+            "RM"
+          ],
+          "nation": "Nation 8",
+          "league": "League 8",
+          "club": "Club Beta",
+          "cardType": "rare",
+          "isWomens": false
+        },
+        {
+          "defId": null,
+          "name": "Probe 9",
+          "rating": 84,
+          "slotPosition": "ST",
+          "positions": [
+            "ST"
+          ],
+          "nation": "Nation 9",
+          "league": "League 9",
+          "club": "Club Beta",
+          "cardType": "rare",
+          "isWomens": false
+        },
+        {
+          "defId": null,
+          "name": "Probe 10",
+          "rating": 84,
+          "slotPosition": "ST",
+          "positions": [
+            "ST"
+          ],
+          "nation": "Nation 10",
+          "league": "League 10",
+          "club": "Club Beta",
+          "cardType": "rare",
+          "isWomens": false
+        }
+      ],
+      "displayedRating": 84,
+      "displayedChemistry": 29,
+      "displayedPlayerChemistry": [
+        2,
+        2,
+        2,
+        2,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3
+      ],
+      "pending_verification": true,
+      "pendingRef": "P-005",
+      "verifies": [
+        "squadRating",
+        "chemistry"
+      ],
+      "source": "PENDING. Constructed from the recorded club ladder, not observed. Expected values follow from club 2/4/7. Designed so a single in game reading confirms or refutes the +2 and +3 steps together."
+    },
+    {
+      "id": "gt-003-league-asymmetry",
+      "description": "League asymmetry probe. Two players share one league, three share another, five share a third, one is alone, and no club or nation is shared. The pair should score nothing at all, which is the asymmetry: two is enough for a club or nation point but not for a league point. If the league ladder is 3/5/8 as recorded, the squad chemistry is 13.",
+      "formation": "4-4-2",
+      "players": [
+        {
+          "defId": null,
+          "name": "Probe 0",
+          "rating": 84,
+          "slotPosition": "GK",
+          "positions": [
+            "GK"
+          ],
+          "nation": "Nation 0",
+          "league": "League TwoPack",
+          "club": "Club 0",
+          "cardType": "rare",
+          "isWomens": false
+        },
+        {
+          "defId": null,
+          "name": "Probe 1",
+          "rating": 84,
+          "slotPosition": "LB",
+          "positions": [
+            "LB"
+          ],
+          "nation": "Nation 1",
+          "league": "League TwoPack",
+          "club": "Club 1",
+          "cardType": "rare",
+          "isWomens": false
+        },
+        {
+          "defId": null,
+          "name": "Probe 2",
+          "rating": 84,
+          "slotPosition": "CB",
+          "positions": [
+            "CB"
+          ],
+          "nation": "Nation 2",
+          "league": "League ThreePack",
+          "club": "Club 2",
+          "cardType": "rare",
+          "isWomens": false
+        },
+        {
+          "defId": null,
+          "name": "Probe 3",
+          "rating": 84,
+          "slotPosition": "CB",
+          "positions": [
+            "CB"
+          ],
+          "nation": "Nation 3",
+          "league": "League ThreePack",
+          "club": "Club 3",
+          "cardType": "rare",
+          "isWomens": false
+        },
+        {
+          "defId": null,
+          "name": "Probe 4",
+          "rating": 84,
+          "slotPosition": "RB",
+          "positions": [
+            "RB"
+          ],
+          "nation": "Nation 4",
+          "league": "League ThreePack",
+          "club": "Club 4",
+          "cardType": "rare",
+          "isWomens": false
+        },
+        {
+          "defId": null,
+          "name": "Probe 5",
+          "rating": 84,
+          "slotPosition": "LM",
+          "positions": [
+            "LM"
+          ],
+          "nation": "Nation 5",
+          "league": "League FivePack",
+          "club": "Club 5",
+          "cardType": "rare",
+          "isWomens": false
+        },
+        {
+          "defId": null,
+          "name": "Probe 6",
+          "rating": 84,
+          "slotPosition": "CM",
+          "positions": [
+            "CM"
+          ],
+          "nation": "Nation 6",
+          "league": "League FivePack",
+          "club": "Club 6",
+          "cardType": "rare",
+          "isWomens": false
+        },
+        {
+          "defId": null,
+          "name": "Probe 7",
+          "rating": 84,
+          "slotPosition": "CM",
+          "positions": [
+            "CM"
+          ],
+          "nation": "Nation 7",
+          "league": "League FivePack",
+          "club": "Club 7",
+          "cardType": "rare",
+          "isWomens": false
+        },
+        {
+          "defId": null,
+          "name": "Probe 8",
+          "rating": 84,
+          "slotPosition": "RM",
+          "positions": [
+            "RM"
+          ],
+          "nation": "Nation 8",
+          "league": "League FivePack",
+          "club": "Club 8",
+          "cardType": "rare",
+          "isWomens": false
+        },
+        {
+          "defId": null,
+          "name": "Probe 9",
+          "rating": 84,
+          "slotPosition": "ST",
+          "positions": [
+            "ST"
+          ],
+          "nation": "Nation 9",
+          "league": "League FivePack",
+          "club": "Club 9",
+          "cardType": "rare",
+          "isWomens": false
+        },
+        {
+          "defId": null,
+          "name": "Probe 10",
+          "rating": 84,
+          "slotPosition": "ST",
+          "positions": [
+            "ST"
+          ],
+          "nation": "Nation 10",
+          "league": "League Lonely",
+          "club": "Club 10",
+          "cardType": "rare",
+          "isWomens": false
+        }
+      ],
+      "displayedRating": 84,
+      "displayedChemistry": 13,
+      "displayedPlayerChemistry": [
+        0,
+        0,
+        1,
+        1,
+        1,
+        2,
+        2,
+        2,
+        2,
+        2,
+        0
+      ],
+      "pending_verification": true,
+      "pendingRef": "P-005",
+      "verifies": [
+        "squadRating",
+        "chemistry"
+      ],
+      "source": "PENDING. Constructed from the recorded league ladder, not observed. Designed so a single in game reading confirms the first two league steps and the club versus league asymmetry together."
     }
   ]
 }

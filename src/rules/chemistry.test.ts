@@ -462,6 +462,8 @@ describe('the card type registry', () => {
         isTotw: false,
         isIcon: false,
         isHero: false,
+        verified: false,
+        source: 'Made up for this test.',
       },
     ])
     const wildcard = resolvedCard({ cardType: 'winter_wildcard', club: 'Arsenal' }, registry)

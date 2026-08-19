@@ -548,6 +548,13 @@ Recorded so nothing depends on chat scrollback. All final unless you say otherwi
 | 6 | Fixture schema records **per player chemistry**, UI cross checks the sum. |
 | 7 | Process: from checkpoint 3 onward, work on `feat/<thing>` branches and merge to `main` when tests pass. **No more direct pushes to `main`.** Stay inside the declared repo scope, ask before attaching and pushing to a repo outside it. |
 | 8 | **Build order of record: checkpoints 3 through 12 first, then 2 and 13** once the FutDB key exists. Forced by the proxy, approved by you, and now the plan. |
+| 9 | **Standing rules moved to `CLAUDE.md`.** Decide and keep going, ask only for readings needing the game, credentials, Section 1.2 and destructive actions. `PENDING.md` is the queue. Reports at milestones, not checkpoints. |
+| 10 | **4.1's counterintuitive sentence deleted.** Verified independently by the owner. Monotonicity tests kept and repointed at the formula, see 4.2. |
+| 11 | **Ground truth fixtures are self contained**, carrying their own card facts rather than referencing `defId`s. A fixture records what the game did on a given day and must not break when the player database is refreshed. Deviates from the brief's fixture schema, which assumed a `defId` per player. Reversible: `defId` is retained as an optional cross reference. |
+| 12 | **Formation slots are compared as a multiset, not index by index.** FC 24 and later have no positional chemistry links, so slot order carries no meaning, and insisting on it would reject a correctly entered fixture whose players happened to be listed right to left. Still catches a fixture using positions the formation does not field. |
+| 13 | **Fixture entry is a CLI now, a UI page at checkpoint 14.** `npm run fixture:template`, `fixture:add`, `fixture:check`. Readings need somewhere to land before the UI exists, and the web page will call the same `validateFixture`. Trivially reversible, it is one call site. |
+| 14 | **`tsx` added as a dev dependency** so scripts can import the TypeScript rules engine directly. Node's type stripping cannot resolve extensionless relative imports and rewriting every import to carry a `.ts` extension for one CLI was the worse trade. |
+| 15 | **Formation table rebuilt, not vendored.** The reference project's `formations.json` is extracted EA game data and its MIT grant does not really speak to that. Marked `verified: false` and surfaced at startup, with P-004 to confirm slot labels. Partly self clearing, since any chemistry fixture confirms its own formation. |
 
 ### 7.1 Process correction, acknowledged
 

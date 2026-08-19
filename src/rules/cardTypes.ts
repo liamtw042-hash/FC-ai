@@ -26,22 +26,32 @@ export const DEFAULT_CONTRIBUTION: ChemistryContribution = {
   alwaysMaxChem: false,
 }
 
+interface DefineOptions {
+  contribution?: Partial<ChemistryContribution>
+  verified?: boolean
+  source?: string
+  pendingRef?: string
+}
+
 function define(
   id: CardType,
   displayName: string,
   group: CardTypeGroup,
-  contribution: Partial<ChemistryContribution> = {},
+  options: DefineOptions = {},
 ): CardTypeDefinition {
-  return {
+  const base: CardTypeDefinition = {
     id,
     displayName,
     group,
-    contribution: { ...DEFAULT_CONTRIBUTION, ...contribution },
+    contribution: { ...DEFAULT_CONTRIBUTION, ...options.contribution },
     isRare: group !== 'common',
     isTotw: group === 'totw',
     isIcon: group === 'icon',
     isHero: group === 'hero',
+    verified: options.verified ?? false,
+    source: options.source ?? 'Unknown card type, defaulted to ordinary card behaviour.',
   }
+  return options.pendingRef === undefined ? base : { ...base, pendingRef: options.pendingRef }
 }
 
 /**
@@ -54,33 +64,44 @@ function define(
  * Icons have no club and no league, Heroes have no club, so their club weight is
  * 0 and the null entity is skipped by the counter regardless.
  */
+const CONFIRMED = 'Confirmed across multiple independent FC 26 chemistry references.'
+
 export const BUILT_IN_CARD_TYPES: CardTypeDefinition[] = [
-  define('common', 'Common', 'common'),
-  define('rare', 'Rare', 'rare'),
-  define('totw', 'Team of the Week', 'totw'),
+  define('common', 'Common', 'common', { verified: true, source: CONFIRMED }),
+  define('rare', 'Rare', 'rare', { verified: true, source: CONFIRMED }),
+  define('totw', 'Team of the Week', 'totw', { verified: true, source: CONFIRMED }),
   define('icon', 'Icon', 'icon', {
-    club: 0,
-    league: 1,
-    nation: 2,
-    appliesLeagueToAll: true,
-    alwaysMaxChem: true,
+    contribution: {
+      club: 0,
+      league: 1,
+      nation: 2,
+      appliesLeagueToAll: true,
+      alwaysMaxChem: true,
+    },
+    verified: true,
+    source: CONFIRMED + ' 2 increments to nation, 1 to every league, always 3 in position.',
   }),
   define('hero', 'Hero', 'hero', {
-    club: 0,
-    league: 2,
-    nation: 1,
-    alwaysMaxChem: true,
+    contribution: { club: 0, league: 2, nation: 1, alwaysMaxChem: true },
+    verified: true,
+    source: CONFIRMED + ' 1 increment to nation, 2 to league, always 3 in position.',
   }),
   /**
    * Festival of Football Captains. FC 26, 44 items at launch.
-   * Three nation links, one club link, one league link, so inherently 3 chemistry.
-   * This is the entry the two boolean model could not express. See RESEARCH.md 2.1.
+   * Three nation links, one club link, one league link.
+   *
+   * PARTLY INFERRED. The 3/1/1 contribution comes from published write ups.
+   * alwaysMaxChem is inferred by analogy with Icons and Heroes, from the claim
+   * that Captains are inherently 3 chemistry. Nobody has confirmed a Captain
+   * sitting at 3 with no supporting links. See PENDING.md P-002.
    */
   define('fof_captain', 'Festival of Football Captain', 'promo', {
-    club: 1,
-    league: 1,
-    nation: 3,
-    alwaysMaxChem: true,
+    contribution: { club: 1, league: 1, nation: 3, alwaysMaxChem: true },
+    verified: false,
+    source:
+      '3 nation, 1 club, 1 league from published write ups. alwaysMaxChem INFERRED by ' +
+      'analogy with Icons and Heroes, never observed in game.',
+    pendingRef: 'P-002',
   }),
 ]
 
@@ -100,6 +121,11 @@ export class CardTypeRegistry {
    */
   get(id: CardType): CardTypeDefinition {
     return this.byId.get(id) ?? define(id, id, 'promo')
+  }
+
+  /** Rows carrying any inferred value. Feeds the startup warning. */
+  unverified(): CardTypeDefinition[] {
+    return this.list().filter((d) => !d.verified)
   }
 
   has(id: CardType): boolean {
