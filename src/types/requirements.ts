@@ -33,9 +33,10 @@ export type Requirement =
   | { type: 'distinctLeagues'; op: CountOp; value: number }
   | { type: 'distinctNations'; op: CountOp; value: number }
   | { type: 'distinctClubs'; op: CountOp; value: number }
-  | { type: 'rareCount'; op: MinMaxOp; value: number }
+  /** exact is allowed here, unlike the brief, which had no reason to forbid it. */
+  | { type: 'rareCount'; op: CountOp; value: number }
   | { type: 'totwCount'; op: 'min'; value: number }
-  | { type: 'cardTypeCount'; cardType: CardType; op: MinMaxOp; value: number }
+  | { type: 'cardTypeCount'; cardType: CardType; op: CountOp; value: number }
   | { type: 'promoCount'; promoName: string; op: 'min'; value: number }
   | { type: 'qualityCount'; quality: Quality; op: CountOp; value: number }
   /** count omitted means all 11. The UI must surface which reading was taken. */
