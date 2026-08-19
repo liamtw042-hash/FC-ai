@@ -68,8 +68,13 @@ def add_chemistry(
     slots: list[str],
     place: list[list[cp_model.IntVar]],
     config: ChemistryConfig | None,
+    tag: str = "s0",
 ):
-    """Returns (per slot chemistry vars, squad chemistry var)."""
+    """Returns (per slot chemistry vars, squad chemistry var).
+
+    `tag` namespaces every variable, because a repeat solve puts several squads'
+    worth of these in one model.
+    """
     if config is None:
         raise MissingChemistryRules(
             "this solve needs chemistry but no chemistry rules were supplied. "
@@ -93,7 +98,7 @@ def add_chemistry(
     in_position_usage = []
     for i, card in enumerate(pool):
         playable = [s for s in range(squad_size) if slots[s] in card.positions]
-        usage = model.NewIntVar(0, card.quantity, f"in_pos_use_{i}")
+        usage = model.NewIntVar(0, card.quantity, f"in_pos_use_{tag}_{i}")
         model.Add(usage == (sum(place[i][s] for s in playable) if playable else 0))
         in_position_usage.append(usage)
 
@@ -126,27 +131,27 @@ def add_chemistry(
 
     club_points = {}
     for club, indices in by_club.items():
-        count = model.NewIntVar(0, squad_size * 4, f"club_count_{club}")
+        count = model.NewIntVar(0, squad_size * 4, f"club_count_{tag}_{club}")
         model.Add(count == counted(indices, lambda i: contribution(i).club))
         club_points[club] = _points_from_ladder(
-            model, count, config.club_thresholds, f"club_{club}", cap
+            model, count, config.club_thresholds, f"club_{tag}_{club}", cap
         )
 
     nation_points = {}
     for nation, indices in by_nation.items():
-        count = model.NewIntVar(0, squad_size * 4, f"nation_count_{nation}")
+        count = model.NewIntVar(0, squad_size * 4, f"nation_count_{tag}_{nation}")
         model.Add(count == counted(indices, lambda i: contribution(i).nation))
         nation_points[nation] = _points_from_ladder(
-            model, count, config.nation_thresholds, f"nation_{nation}", cap
+            model, count, config.nation_thresholds, f"nation_{tag}_{nation}", cap
         )
 
     league_points = {}
     for league, indices in by_league.items():
-        count = model.NewIntVar(0, squad_size * 4, f"league_count_{league}")
+        count = model.NewIntVar(0, squad_size * 4, f"league_count_{tag}_{league}")
         own = counted(indices, lambda i: 0 if contribution(i).applies_league_to_all else contribution(i).league)
         model.Add(count == own + all_league)
         league_points[league] = _points_from_ladder(
-            model, count, config.league_thresholds, f"league_{league}", cap
+            model, count, config.league_thresholds, f"league_{tag}_{league}", cap
         )
 
     # Per card chemistry, as if that card were in position somewhere.
@@ -173,15 +178,15 @@ def add_chemistry(
             )
             bonus = 1 if matches else 0
 
-        raw = model.NewIntVar(0, cap * 4 + 1, f"raw_chem_{i}")
+        raw = model.NewIntVar(0, cap * 4 + 1, f"raw_chem_{tag}_{i}")
         model.Add(raw == (sum(parts) if parts else 0) + bonus)
-        capped = model.NewIntVar(0, cap, f"chem_{i}")
+        capped = model.NewIntVar(0, cap, f"chem_{tag}_{i}")
         model.AddMinEquality(capped, [raw, cap])
         card_chemistry.append(capped)
 
     slot_chemistry = []
     for s in range(squad_size):
-        value = model.NewIntVar(0, cap, f"slot_chem_{s}")
+        value = model.NewIntVar(0, cap, f"slot_chem_{tag}_{s}")
         for i, card in enumerate(pool):
             if slots[s] in card.positions:
                 model.Add(value == card_chemistry[i]).OnlyEnforceIf(place[i][s])
@@ -190,6 +195,6 @@ def add_chemistry(
                 model.Add(value == 0).OnlyEnforceIf(place[i][s])
         slot_chemistry.append(value)
 
-    total = model.NewIntVar(0, config.max_squad_chemistry, "squad_chemistry")
+    total = model.NewIntVar(0, config.max_squad_chemistry, f"squad_chemistry_{tag}")
     model.Add(total == sum(slot_chemistry))
     return slot_chemistry, total
