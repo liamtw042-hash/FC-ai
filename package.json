@@ -9,7 +9,11 @@
     "test:watch": "vitest",
     "fixture:template": "tsx scripts/fixtures.ts template",
     "fixture:add": "tsx scripts/fixtures.ts add",
-    "fixture:check": "tsx scripts/fixtures.ts check"
+    "fixture:check": "tsx scripts/fixtures.ts check",
+    "solver:install": "pip install -r solver/requirements.txt",
+    "solver:test": "cd solver && python3 -m pytest tests -q",
+    "solver:dev": "cd solver && python3 -m uvicorn fc_ai_solver.app:app --host 127.0.0.1 --port 8000 --reload",
+    "test:all": "npm run test && npm run solver:test"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",

@@ -29,11 +29,40 @@ checkpoint 2.
 
 ```
 src/types/      shared TypeScript types, no logic
-src/rules/      the rules engine, pure TS, zero dependencies, Vitest    (checkpoint 3+)
+src/rules/      the rules engine, pure TS, zero dependencies, Vitest
+solver/         Python CP-SAT service, FastAPI, localhost only
+scripts/        CLI tools, currently ground truth fixture entry
 data/seed/      player database seed and schema mapping                 (checkpoint 2)
 data/club/      my club data, gitignored, example files only
 data/screenshots/  screenshot intake, gitignored
-tests/fixtures/ ground truth squads captured from the real game         (checkpoint 5)
+tests/fixtures/ ground truth squads captured from the real game
+```
+
+## Where the game rules live
+
+**All of them are in `src/rules/`, and nowhere else.** That is the only
+implementation under ground truth verification, and it is the one that decides
+whether a squad is valid.
+
+The Python solver is a constraint compiler that knows no game rules. Rating maths
+never reaches it: TypeScript enumerates the rating multisets and asks the solver to
+fill an exact one. Chemistry ladders and card contribution weights are passed in as
+data. Every squad the solver returns is re-validated by the TypeScript engine before
+it reaches the user, so if the two ever disagree the authoritative one wins and the
+disagreement is visible.
+
+## Commands
+
+```
+npm test              rules engine, Vitest
+npm run typecheck     strict TypeScript
+npm run solver:test   CP-SAT model, pytest
+npm run test:all      both
+npm run solver:dev    start the local solver service on 127.0.0.1:8000
+
+npm run fixture:template 4-4-2 > squad.json    ground truth entry
+npm run fixture:add squad.json                 validate, score, store
+npm run fixture:check                          run every fixture
 ```
 
 ## Conventions
