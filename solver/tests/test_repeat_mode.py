@@ -10,6 +10,10 @@ from __future__ import annotations
 
 import pytest
 
+# Repeat mode builds one CP-SAT model per candidate count, so these are the slow
+# tests in the suite. `pytest -m "not slow"` skips them while iterating.
+pytestmark = pytest.mark.slow
+
 from fc_ai_solver import PoolCard, Requirement, solve_repeat
 
 FORMATION = ["GK", "LB", "CB", "CB", "RB", "LM", "CM", "CM", "RM", "ST", "ST"]
@@ -107,11 +111,15 @@ class TestTenEightyFiveRatedSquads:
         result = solve_repeat(
             pool, FORMATION, requested=10, allowed_rating_multisets=MULTISETS_85
         )
-        assert 1 <= result.achieved < 10
+        # Seven, and the exact number is pinned rather than left as "fewer than
+        # ten", because an unpinned number is one nobody checks.
+        assert result.achieved == 7
         assert not result.complete
-        assert f"{result.achieved} of 10 squads are achievable" in result.shortfall_reason
-        # No single requirement is at fault here, and saying so is more useful
-        # than naming an innocent rule.
+        assert "7 of 10 squads are achievable" in result.shortfall_reason
+        # Twenty five 86s alone would allow eight squads at three each. What stops
+        # the eighth is the interaction with the 85s: the multiset needing only
+        # three 86s wants four 85s, and there are twenty. No single requirement is
+        # at fault, and saying so is more useful than naming an innocent rule.
         assert result.binding_requirement is None
         assert "the size of the available pool" in result.shortfall_reason
 
@@ -197,3 +205,116 @@ class TestGuards:
         result = solve_repeat(fodder(5, 84, 100, "f"), FORMATION, requested=3)
         assert result.achieved == 0
         assert "not even one squad" in result.shortfall_reason
+
+
+class TestAPairOfRequirementsWithNeitherSufficientAlone:
+    """The realistic shortfall on a long run.
+
+    Single requirement removal only finds single blockers. Here two requirements
+    each cap the run at five, so removing either one still leaves the other
+    capping it at five, and only removing both gets squad six through. Reporting
+    "no blocker found" on this would be worse than useless, because this is the
+    case worth explaining.
+    """
+
+    @staticmethod
+    def pool_with_two_scarce_types() -> list[PoolCard]:
+        return (
+            fodder(28, 86, 4000, "h")
+            + fodder(16, 85, 2600, "m")
+            + fodder(40, 83, 1200, "l")
+            + fodder(24, 82, 900, "x")
+            # Five TOTW and five FUTTIES, disjoint, each rated 83 so they slot in.
+            + fodder(5, 83, 1500, "totw", card_type="totw", is_totw=True, is_rare=True)
+            + fodder(5, 83, 1500, "promo", card_type="promo", promo_name="FUTTIES", is_rare=True)
+        )
+
+    REQUIREMENTS = [
+        Requirement(type="totwCount", op="min", value=1),
+        Requirement(type="promoCount", promo_name="FUTTIES", op="min", value=1),
+    ]
+
+    def test_neither_requirement_alone_explains_the_shortfall(self):
+        pool = self.pool_with_two_scarce_types()
+        # Five TOTW cards cap the run at five on their own.
+        totw_only = solve_repeat(
+            pool, FORMATION, requested=6,
+            requirements=[self.REQUIREMENTS[0]],
+            allowed_rating_multisets=MULTISETS_85,
+        )
+        assert totw_only.achieved == 5
+        # And five FUTTIES cap it at five on their own too.
+        promo_only = solve_repeat(
+            pool, FORMATION, requested=6,
+            requirements=[self.REQUIREMENTS[1]],
+            allowed_rating_multisets=MULTISETS_85,
+        )
+        assert promo_only.achieved == 5
+        # With neither, six is comfortable.
+        neither = solve_repeat(
+            pool, FORMATION, requested=6, allowed_rating_multisets=MULTISETS_85
+        )
+        assert neither.achieved == 6
+
+    def test_the_diagnosis_names_the_pair(self):
+        pool = self.pool_with_two_scarce_types()
+        result = solve_repeat(
+            pool, FORMATION, requested=6,
+            requirements=self.REQUIREMENTS,
+            allowed_rating_multisets=MULTISETS_85,
+        )
+        assert result.achieved == 5
+        # No SINGLE blocker exists, so the single-blocker accessor stays empty
+        # rather than picking one of the pair and being half right.
+        assert result.binding_requirement is None
+        assert result.diagnosis is not None
+        assert result.diagnosis.subset_size == 2
+        assert sorted(result.diagnosis.blocking) == sorted(
+            ["totwCount min 1", "promoCount promo=FUTTIES min 1"]
+        )
+        assert "Neither alone is enough" in result.diagnosis.explanation
+        assert "which is why removing one at a time finds nothing" in result.diagnosis.explanation
+
+    def test_and_removing_both_really_does_unblock_it(self):
+        # A diagnosis nobody checks is worth nothing, so the claim is verified.
+        pool = self.pool_with_two_scarce_types()
+        both_removed = solve_repeat(
+            pool, FORMATION, requested=6, allowed_rating_multisets=MULTISETS_85
+        )
+        assert both_removed.achieved == 6
+
+
+class TestWhenNoSmallSubsetExplainsIt:
+    def test_it_says_so_and_reports_what_was_closest_rather_than_going_quiet(self):
+        # Three requirements, each individually satisfiable, whose combination
+        # with a thin pool leaves no two-requirement explanation.
+        pool = (
+            fodder(12, 86, 4000, "h")
+            + fodder(12, 85, 2600, "m")
+            + fodder(24, 83, 1200, "l")
+            + fodder(24, 82, 900, "x")
+            + fodder(3, 83, 1500, "totw", card_type="totw", is_totw=True, is_rare=True)
+        )
+        requirements = [
+            Requirement(type="totwCount", op="min", value=1),
+            Requirement(type="distinctNations", op="min", value=11),
+            Requirement(type="minPlayerRating", value=82),
+        ]
+        result = solve_repeat(
+            pool, FORMATION, requested=6,
+            requirements=requirements,
+            allowed_rating_multisets=MULTISETS_85,
+        )
+        assert result.diagnosis is not None
+        if result.diagnosis.blocking:
+            # A small subset did explain it, which is a fine outcome too.
+            assert result.diagnosis.subset_size in (1, 2)
+        else:
+            assert "no single requirement and no pair explains it" in result.diagnosis.explanation
+            # Silence is the failure mode being avoided. Either it names what is
+            # closest to binding, or it says the pool is the limit.
+            assert (
+                "Closest to binding" in result.diagnosis.explanation
+                or "The pool is the limit" in result.diagnosis.explanation
+            )
+            assert result.diagnosis.contributions, "every requirement is reported on"
