@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import time
 from collections import defaultdict
+from itertools import combinations
 
 from ortools.sat.python import cp_model
 
@@ -171,6 +172,37 @@ def solve_variable_count(
 # ---------------------------------------------------------------------------
 
 
+class ShortfallDiagnosis:
+    """Why squad M+1 could not be built.
+
+    Single requirement removal only ever finds single blockers. The realistic case
+    on a run of ten is a COMBINATION: no one removal gets the next squad through,
+    but two together do. Reporting "no blocker found" there is worse than useless,
+    because it is exactly the case worth explaining.
+
+    So: singles, then pairs, and if neither explains it, say so plainly and report
+    how far each requirement is from binding rather than going quiet.
+    """
+
+    def __init__(
+        self,
+        blocking: list[str],
+        contributions: list[tuple[str, int | None]],
+        explanation: str,
+    ) -> None:
+        # The smallest subset whose removal unblocks the next squad. One or two
+        # entries, or empty when no small subset explains it.
+        self.blocking = blocking
+        # Requirement to the smallest relaxation of its value that would unblock,
+        # or None when no relaxation within the probe range helps.
+        self.contributions = contributions
+        self.explanation = explanation
+
+    @property
+    def subset_size(self) -> int | None:
+        return len(self.blocking) if self.blocking else None
+
+
 class RepeatOutcome:
     """N squads of one repeatable SBC, solved jointly against a shared pool."""
 
@@ -182,8 +214,9 @@ class RepeatOutcome:
         total_cost: int,
         proven_optimal: bool,
         wall_time_seconds: float,
-        binding_requirement: str | None,
+        diagnosis: ShortfallDiagnosis | None,
         shortfall_reason: str | None,
+        solves_run: int = 0,
     ) -> None:
         self.requested = requested
         self.achieved = achieved
@@ -191,12 +224,20 @@ class RepeatOutcome:
         self.total_cost = total_cost
         self.proven_optimal = proven_optimal
         self.wall_time_seconds = wall_time_seconds
-        self.binding_requirement = binding_requirement
+        self.diagnosis = diagnosis
         self.shortfall_reason = shortfall_reason
+        self.solves_run = solves_run
 
     @property
     def complete(self) -> bool:
         return self.achieved == self.requested
+
+    @property
+    def binding_requirement(self) -> str | None:
+        """The single blocker, when there is exactly one. None otherwise."""
+        if self.diagnosis is None or len(self.diagnosis.blocking) != 1:
+            return None
+        return self.diagnosis.blocking[0]
 
 
 def _describe(requirement: Requirement) -> str:
@@ -219,6 +260,27 @@ def _describe(requirement: Requirement) -> str:
     if requirement.count is not None:
         bits.append(f"count={requirement.count}")
     return " ".join(bits)
+
+
+def _relaxed(requirement: Requirement, by: int) -> Requirement | None:
+    """The same requirement, loosened by `by` in its own units.
+
+    Returns None when the requirement has no numeric value to loosen, or when
+    loosening it any further would make it vacuous.
+    """
+    if requirement.value is None:
+        return None
+    if requirement.op == "max":
+        return requirement.model_copy(update={"value": requirement.value + by})
+    # min and exact both loosen downward. An exact becomes a minimum, because
+    # "exactly 5, or fewer" is the honest reading of relaxing it.
+    loosened = requirement.value - by
+    if loosened < 0:
+        return None
+    update = {"value": loosened}
+    if requirement.op == "exact":
+        update["op"] = "min"
+    return requirement.model_copy(update=update)
 
 
 def _build_exact(
@@ -250,7 +312,9 @@ def _build_exact(
             by_rating: dict[int, list[int]] = defaultdict(list)
             for index, card in enumerate(pool):
                 by_rating[card.rating].append(index)
-            picks = [model.NewBoolVar(f"combo_{j}_{k}") for k in range(len(allowed_rating_multisets))]
+            picks = [
+                model.NewBoolVar(f"combo_{j}_{k}") for k in range(len(allowed_rating_multisets))
+            ]
             model.AddExactlyOne(picks)
             ratings_seen = {r for combo in allowed_rating_multisets for r in combo}
             for rating in ratings_seen:
@@ -265,7 +329,9 @@ def _build_exact(
                 if card.rating not in ratings_seen:
                     model.Add(usage[index] == 0)
 
-        add_challenge(model, pool, formation_slots, usage, place, requirements, chemistry, tag=f"s{j}")
+        add_challenge(
+            model, pool, formation_slots, usage, place, requirements, chemistry, tag=f"s{j}"
+        )
         all_usage.append(usage)
         all_place.append(place)
 
@@ -273,26 +339,156 @@ def _build_exact(
     for i, card in enumerate(pool):
         model.Add(sum(all_usage[j][i] for j in range(squads)) <= card.quantity)
 
-    model.Minimize(
-        sum(all_usage[j][i] * pool[i].cost for j in range(squads) for i in range(n))
-    )
+    model.Minimize(sum(all_usage[j][i] * pool[i].cost for j in range(squads) for i in range(n)))
     return model, all_usage, all_place
 
 
-def _try(
-    pool, formation_slots, squads, requirements, chemistry, multisets, budget, workers
-):
-    if squads == 0:
-        return cp_model.OPTIMAL, None, None, None, 0.0
-    model, all_usage, all_place = _build_exact(
-        pool, formation_slots, squads, requirements, chemistry, multisets
-    )
-    solver = cp_model.CpSolver()
-    solver.parameters.max_time_in_seconds = budget
-    solver.parameters.num_search_workers = workers
-    started = time.perf_counter()
-    status = solver.Solve(model)
-    return status, solver, all_usage, all_place, time.perf_counter() - started
+class _Search:
+    """Runs the exact count models and keeps a note of how much work that took."""
+
+    def __init__(self, pool, slots, chemistry, multisets, budget, workers):
+        self.pool = pool
+        self.slots = slots
+        self.chemistry = chemistry
+        self.multisets = multisets
+        self.budget = budget
+        self.workers = workers
+        self.solves = 0
+        self.elapsed = 0.0
+
+    def run(self, count: int, requirements: list[Requirement], budget: float | None = None):
+        if count <= 0:
+            return cp_model.OPTIMAL, None, None, None
+        model, all_usage, all_place = _build_exact(
+            self.pool, self.slots, count, requirements, self.chemistry, self.multisets
+        )
+        solver = cp_model.CpSolver()
+        solver.parameters.max_time_in_seconds = budget if budget is not None else self.budget
+        solver.parameters.num_search_workers = self.workers
+        started = time.perf_counter()
+        status = solver.Solve(model)
+        self.elapsed += time.perf_counter() - started
+        self.solves += 1
+        return status, solver, all_usage, all_place
+
+    def feasible(self, count: int, requirements: list[Requirement], budget: float | None = None) -> bool:
+        status, *_ = self.run(count, requirements, budget)
+        return status in (cp_model.OPTIMAL, cp_model.FEASIBLE)
+
+    def largest_feasible(self, cap: int, requirements: list[Requirement], budget: float | None = None):
+        """The largest achievable count, searched from BELOW.
+
+        Feasibility is monotone in the count: N + 1 squads feasible implies N is,
+        because dropping one squad is always allowed. So an infeasible N proves
+        every larger count infeasible too.
+
+        Searching downward from the requested number builds the biggest models
+        first, and those are exactly the infeasible ones, which are the expensive
+        ones to prove. Upward doubling then bisecting probes high at most twice and
+        does work proportional to what is achievable rather than to what was asked
+        for.
+        """
+        if cap <= 0:
+            return 0, None
+        best = 0
+        best_solve = None
+
+        # Bracket: 1, 2, 4, 8, ... until one fails or the cap is passed.
+        probe = 1
+        while probe <= cap:
+            status, solver, usage, place = self.run(probe, requirements, budget)
+            if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+                break
+            best, best_solve = probe, (solver, usage, place, status)
+            if probe == cap:
+                return best, best_solve
+            probe *= 2
+
+        # Bisect between the last success and the first failure. When the doubling
+        # ran off the end of the cap rather than failing, cap + 1 stands in as the
+        # infeasible bound, since anything above the cap is out of scope anyway.
+        # Falling through without this leaves counts between the last power of two
+        # and the cap unchecked, which silently under reports what is achievable.
+        low, high = best, min(probe, cap + 1)  # low feasible, high infeasible
+        while high - low > 1:
+            middle = (low + high) // 2
+            status, solver, usage, place = self.run(middle, requirements, budget)
+            if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+                low, best_solve = middle, (solver, usage, place, status)
+            else:
+                high = middle
+        return low, best_solve
+
+
+def _diagnose(
+    search: _Search, target_count: int, requirements: list[Requirement], probe_budget: float
+) -> ShortfallDiagnosis:
+    """Which requirements block squad `target_count`. Singles, then pairs, then honesty."""
+    if not requirements:
+        return ShortfallDiagnosis(
+            blocking=[],
+            contributions=[],
+            explanation="the size of the available pool, not any requirement",
+        )
+
+    # Singles.
+    for index, requirement in enumerate(requirements):
+        reduced = requirements[:index] + requirements[index + 1 :]
+        if search.feasible(target_count, reduced, probe_budget):
+            return ShortfallDiagnosis(
+                blocking=[_describe(requirement)],
+                contributions=[],
+                explanation=_describe(requirement),
+            )
+
+    # Pairs. Bounded, because the number of pairs grows quadratically and a real
+    # SBC with twenty requirements would spend the whole budget here.
+    MAX_FOR_PAIRS = 8
+    pairs_searched = len(requirements) <= MAX_FOR_PAIRS
+    if pairs_searched:
+        for first, second in combinations(range(len(requirements)), 2):
+            reduced = [r for k, r in enumerate(requirements) if k not in (first, second)]
+            if search.feasible(target_count, reduced, probe_budget):
+                names = [_describe(requirements[first]), _describe(requirements[second])]
+                return ShortfallDiagnosis(
+                    blocking=names,
+                    contributions=[],
+                    explanation=(
+                        f"{names[0]} and {names[1]} together. Neither alone is enough, "
+                        f"which is why removing one at a time finds nothing."
+                    ),
+                )
+
+    # Neither. Say so, and report how far each requirement is from binding rather
+    # than going quiet on the case that most needs explaining.
+    contributions: list[tuple[str, int | None]] = []
+    for requirement in requirements:
+        smallest: int | None = None
+        for by in (1, 2, 3):
+            loosened = _relaxed(requirement, by)
+            if loosened is None:
+                break
+            swapped = [loosened if r is requirement else r for r in requirements]
+            if search.feasible(target_count, swapped, probe_budget):
+                smallest = by
+                break
+        contributions.append((_describe(requirement), smallest))
+
+    movable = [(name, by) for name, by in contributions if by is not None]
+    if movable:
+        closest = ", ".join(f"{name} (loosen by {by})" for name, by in sorted(movable, key=lambda x: x[1]))
+        explanation = (
+            f"no single requirement and no pair explains it"
+            f"{'' if pairs_searched else ', and there were too many requirements to search pairs'}. "
+            f"Closest to binding: {closest}"
+        )
+    else:
+        explanation = (
+            f"no single requirement and no pair explains it"
+            f"{'' if pairs_searched else ', and there were too many requirements to search pairs'}, "
+            f"and no requirement loosened by up to 3 unblocks it either. The pool is the limit"
+        )
+    return ShortfallDiagnosis(blocking=[], contributions=contributions, explanation=explanation)
 
 
 def solve_repeat(
@@ -304,16 +500,13 @@ def solve_repeat(
     chemistry: ChemistryConfig | None = None,
     allowed_rating_multisets: list[dict[int, int]] | None = None,
     time_budget_seconds: float = 60.0,
+    diagnosis_budget_seconds: float = 10.0,
     workers: int = 8,
 ) -> RepeatOutcome:
     """One repeatable SBC, N times, solved JOINTLY. Brief 6.1.
 
     Greedy one at a time burns the good fodder on squad one and then fails on
     squad four, so every count is solved as a single model over the whole pool.
-
-    When fewer than N are achievable, the shortfall is diagnosed: the requirement
-    that blocks squad M+1 is identified by removing requirements one at a time and
-    seeing which one lets M+1 through.
     """
     require_squad_size(formation_slots, label="this challenge")
     if requested < 1:
@@ -327,35 +520,24 @@ def solve_repeat(
         )
 
     requirements = list(requirements or [])
-    elapsed_total = 0.0
-    best: tuple[int, object, list, list] | None = None
+    search = _Search(
+        pool, formation_slots, chemistry, allowed_rating_multisets, time_budget_seconds, workers
+    )
+    achieved, best_solve = search.largest_feasible(requested, requirements)
 
-    # Descending, so the first feasible count is the largest achievable.
-    for count in range(requested, 0, -1):
-        status, solver, all_usage, all_place, elapsed = _try(
-            pool, formation_slots, count, requirements, chemistry,
-            allowed_rating_multisets, time_budget_seconds, workers,
-        )
-        elapsed_total += elapsed
-        if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-            best = (count, solver, all_usage, all_place)
-            proven = status == cp_model.OPTIMAL
-            break
-    else:
+    if achieved == 0 or best_solve is None:
         return RepeatOutcome(
-            requested=requested, achieved=0, squads=[], total_cost=0,
-            proven_optimal=False, wall_time_seconds=elapsed_total,
-            binding_requirement=_diagnose(
-                pool, formation_slots, 1, requirements, chemistry,
-                allowed_rating_multisets, time_budget_seconds, workers,
-            ),
+            requested=requested, achieved=0, squads=[], total_cost=0, proven_optimal=False,
+            wall_time_seconds=search.elapsed,
+            diagnosis=_diagnose(search, 1, requirements, diagnosis_budget_seconds),
             shortfall_reason="not even one squad can be built from this pool",
+            solves_run=search.solves,
         )
 
-    count, solver, all_usage, all_place = best
+    solver, all_usage, all_place, status = best_solve
     squads: list[list[PlacedCard]] = []
     total = 0
-    for j in range(count):
+    for j in range(achieved):
         placements: list[PlacedCard] = []
         for s in range(SQUAD_SIZE):
             for i in range(len(pool)):
@@ -371,40 +553,17 @@ def solve_repeat(
                     break
         squads.append(placements)
 
-    binding = None
+    diagnosis = None
     shortfall = None
-    if count < requested:
-        binding = _diagnose(
-            pool, formation_slots, count + 1, requirements, chemistry,
-            allowed_rating_multisets, time_budget_seconds, workers,
-        )
+    if achieved < requested:
+        diagnosis = _diagnose(search, achieved + 1, requirements, diagnosis_budget_seconds)
         shortfall = (
-            f"{count} of {requested} squads are achievable. Squad {count + 1} is blocked by "
-            + (f"{binding}." if binding else "the size of the available pool, not by any single requirement.")
+            f"{achieved} of {requested} squads are achievable. "
+            f"Squad {achieved + 1} is blocked by {diagnosis.explanation}."
         )
 
     return RepeatOutcome(
-        requested=requested, achieved=count, squads=squads, total_cost=total,
-        proven_optimal=proven, wall_time_seconds=elapsed_total,
-        binding_requirement=binding, shortfall_reason=shortfall,
+        requested=requested, achieved=achieved, squads=squads, total_cost=total,
+        proven_optimal=status == cp_model.OPTIMAL, wall_time_seconds=search.elapsed,
+        diagnosis=diagnosis, shortfall_reason=shortfall, solves_run=search.solves,
     )
-
-
-def _diagnose(
-    pool, formation_slots, target_count, requirements, chemistry, multisets, budget, workers
-) -> str | None:
-    """Which single requirement blocks squad `target_count`.
-
-    Removes one requirement at a time and re-solves. The one whose removal makes
-    the count feasible is the binding constraint. If no single removal helps, the
-    pool itself is the limit and saying so is more useful than naming a rule.
-    """
-    for index, requirement in enumerate(requirements):
-        reduced = requirements[:index] + requirements[index + 1 :]
-        status, *_ = _try(
-            pool, formation_slots, target_count, reduced, chemistry, multisets,
-            min(budget, 10.0), workers,
-        )
-        if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-            return _describe(requirement)
-    return None
