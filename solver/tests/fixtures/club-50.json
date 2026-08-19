@@ -1,0 +1,1029 @@
+{
+  "cards": [
+    {
+      "id": "card-00",
+      "rating": 85,
+      "positions": [
+        "CM"
+      ],
+      "nation": "Argentina",
+      "league": "Bundesliga",
+      "club": "Dortmund",
+      "card_type": "totw",
+      "promo_name": null,
+      "is_rare": true,
+      "is_totw": true,
+      "is_evolved": true,
+      "is_womens": false,
+      "quantity": 1,
+      "cost": 1050,
+      "coins_spent": 1050,
+      "value_burned": 0
+    },
+    {
+      "id": "card-01",
+      "rating": 80,
+      "positions": [
+        "CB",
+        "CAM"
+      ],
+      "nation": "Italy",
+      "league": "Bundesliga",
+      "club": "Bayern",
+      "card_type": "totw",
+      "promo_name": null,
+      "is_rare": true,
+      "is_totw": true,
+      "is_evolved": false,
+      "is_womens": false,
+      "quantity": 1,
+      "cost": 400,
+      "coins_spent": 400,
+      "value_burned": 0
+    },
+    {
+      "id": "card-02",
+      "rating": 85,
+      "positions": [
+        "LM",
+        "LB"
+      ],
+      "nation": "Argentina",
+      "league": "Premier League",
+      "club": "Arsenal",
+      "card_type": "totw",
+      "promo_name": null,
+      "is_rare": true,
+      "is_totw": true,
+      "is_evolved": false,
+      "is_womens": false,
+      "quantity": 3,
+      "cost": 1050,
+      "coins_spent": 1050,
+      "value_burned": 0
+    },
+    {
+      "id": "card-03",
+      "rating": 80,
+      "positions": [
+        "LM"
+      ],
+      "nation": "Italy",
+      "league": "La Liga",
+      "club": "Barcelona",
+      "card_type": "common",
+      "promo_name": null,
+      "is_rare": false,
+      "is_totw": false,
+      "is_evolved": false,
+      "is_womens": false,
+      "quantity": 2,
+      "cost": 250,
+      "coins_spent": 250,
+      "value_burned": 0
+    },
+    {
+      "id": "card-04",
+      "rating": 83,
+      "positions": [
+        "LB",
+        "ST"
+      ],
+      "nation": "France",
+      "league": "Serie A",
+      "club": "Juventus",
+      "card_type": "rare",
+      "promo_name": null,
+      "is_rare": true,
+      "is_totw": false,
+      "is_evolved": false,
+      "is_womens": false,
+      "quantity": 1,
+      "cost": 550,
+      "coins_spent": 550,
+      "value_burned": 0
+    },
+    {
+      "id": "card-05",
+      "rating": 83,
+      "positions": [
+        "GK",
+        "LB"
+      ],
+      "nation": "Germany",
+      "league": "Serie A",
+      "club": "Inter",
+      "card_type": "rare",
+      "promo_name": null,
+      "is_rare": true,
+      "is_totw": false,
+      "is_evolved": false,
+      "is_womens": false,
+      "quantity": 1,
+      "cost": 550,
+      "coins_spent": 550,
+      "value_burned": 0
+    },
+    {
+      "id": "card-06",
+      "rating": 85,
+      "positions": [
+        "ST"
+      ],
+      "nation": "Germany",
+      "league": "Premier League",
+      "club": "Liverpool",
+      "card_type": "rare",
+      "promo_name": null,
+      "is_rare": true,
+      "is_totw": false,
+      "is_evolved": false,
+      "is_womens": false,
+      "quantity": 1,
+      "cost": 1050,
+      "coins_spent": 1050,
+      "value_burned": 0
+    },
+    {
+      "id": "card-07",
+      "rating": 87,
+      "positions": [
+        "ST",
+        "CM"
+      ],
+      "nation": "Spain",
+      "league": "Bundesliga",
+      "club": "Bayern",
+      "card_type": "rare",
+      "promo_name": null,
+      "is_rare": true,
+      "is_totw": false,
+      "is_evolved": false,
+      "is_womens": false,
+      "quantity": 1,
+      "cost": 2175,
+      "coins_spent": 2175,
+      "value_burned": 0
+    },
+    {
+      "id": "card-08",
+      "rating": 84,
+      "positions": [
+        "LM",
+        "RB"
+      ],
+      "nation": "Portugal",
+      "league": "Premier League",
+      "club": "Arsenal",
+      "card_type": "common",
+      "promo_name": null,
+      "is_rare": false,
+      "is_totw": false,
+      "is_evolved": false,
+      "is_womens": false,
+      "quantity": 1,
+      "cost": 600,
+      "coins_spent": 600,
+      "value_burned": 0
+    },
+    {
+      "id": "card-09",
+      "rating": 86,
+      "positions": [
+        "CDM"
+      ],
+      "nation": "Spain",
+      "league": "Premier League",
+      "club": "Arsenal",
+      "card_type": "common",
+      "promo_name": null,
+      "is_rare": false,
+      "is_totw": false,
+      "is_evolved": false,
+      "is_womens": false,
+      "quantity": 1,
+      "cost": 1350,
+      "coins_spent": 1350,
+      "value_burned": 0
+    },
+    {
+      "id": "card-10",
+      "rating": 81,
+      "positions": [
+        "LB"
+      ],
+      "nation": "Spain",
+      "league": "Premier League",
+      "club": "Chelsea",
+      "card_type": "rare",
+      "promo_name": null,
+      "is_rare": true,
+      "is_totw": false,
+      "is_evolved": false,
+      "is_womens": false,
+      "quantity": 1,
+      "cost": 400,
+      "coins_spent": 400,
+      "value_burned": 0
+    },
+    {
+      "id": "card-11",
+      "rating": 83,
+      "positions": [
+        "LB",
+        "CDM"
+      ],
+      "nation": "France",
+      "league": "Premier League",
+      "club": "Arsenal",
+      "card_type": "rare",
+      "promo_name": null,
+      "is_rare": true,
+      "is_totw": false,
+      "is_evolved": false,
+      "is_womens": false,
+      "quantity": 1,
+      "cost": 550,
+      "coins_spent": 550,
+      "value_burned": 0
+    },
+    {
+      "id": "card-12",
+      "rating": 87,
+      "positions": [
+        "CAM"
+      ],
+      "nation": "Germany",
+      "league": "Serie A",
+      "club": "Juventus",
+      "card_type": "rare",
+      "promo_name": null,
+      "is_rare": true,
+      "is_totw": false,
+      "is_evolved": false,
+      "is_womens": false,
+      "quantity": 1,
+      "cost": 2175,
+      "coins_spent": 2175,
+      "value_burned": 0
+    },
+    {
+      "id": "card-13",
+      "rating": 86,
+      "positions": [
+        "CAM"
+      ],
+      "nation": "Portugal",
+      "league": "Bundesliga",
+      "club": "Dortmund",
+      "card_type": "rare",
+      "promo_name": null,
+      "is_rare": true,
+      "is_totw": false,
+      "is_evolved": false,
+      "is_womens": false,
+      "quantity": 1,
+      "cost": 1500,
+      "coins_spent": 1500,
+      "value_burned": 0
+    },
+    {
+      "id": "card-14",
+      "rating": 88,
+      "positions": [
+        "CDM"
+      ],
+      "nation": "France",
+      "league": "Bundesliga",
+      "club": "Bayern",
+      "card_type": "rare",
+      "promo_name": null,
+      "is_rare": true,
+      "is_totw": false,
+      "is_evolved": false,
+      "is_womens": false,
+      "quantity": 1,
+      "cost": 3187,
+      "coins_spent": 3187,
+      "value_burned": 0
+    },
+    {
+      "id": "card-15",
+      "rating": 85,
+      "positions": [
+        "LB"
+      ],
+      "nation": "Germany",
+      "league": "Bundesliga",
+      "club": "Bayern",
+      "card_type": "common",
+      "promo_name": null,
+      "is_rare": false,
+      "is_totw": false,
+      "is_evolved": false,
+      "is_womens": false,
+      "quantity": 3,
+      "cost": 900,
+      "coins_spent": 900,
+      "value_burned": 0
+    },
+    {
+      "id": "card-16",
+      "rating": 82,
+      "positions": [
+        "RM"
+      ],
+      "nation": "France",
+      "league": "Premier League",
+      "club": "Arsenal",
+      "card_type": "rare",
+      "promo_name": null,
+      "is_rare": true,
+      "is_totw": false,
+      "is_evolved": false,
+      "is_womens": false,
+      "quantity": 1,
+      "cost": 400,
+      "coins_spent": 400,
+      "value_burned": 0
+    },
+    {
+      "id": "card-17",
+      "rating": 86,
+      "positions": [
+        "CDM",
+        "RM"
+      ],
+      "nation": "Italy",
+      "league": "La Liga",
+      "club": "Barcelona",
+      "card_type": "common",
+      "promo_name": null,
+      "is_rare": false,
+      "is_totw": false,
+      "is_evolved": true,
+      "is_womens": false,
+      "quantity": 3,
+      "cost": 1350,
+      "coins_spent": 1350,
+      "value_burned": 0
+    },
+    {
+      "id": "card-18",
+      "rating": 88,
+      "positions": [
+        "GK"
+      ],
+      "nation": "Germany",
+      "league": "Premier League",
+      "club": "Chelsea",
+      "card_type": "common",
+      "promo_name": null,
+      "is_rare": false,
+      "is_totw": false,
+      "is_evolved": false,
+      "is_womens": false,
+      "quantity": 1,
+      "cost": 3037,
+      "coins_spent": 3037,
+      "value_burned": 0
+    },
+    {
+      "id": "card-19",
+      "rating": 80,
+      "positions": [
+        "CM"
+      ],
+      "nation": "Germany",
+      "league": "Premier League",
+      "club": "Arsenal",
+      "card_type": "rare",
+      "promo_name": null,
+      "is_rare": true,
+      "is_totw": false,
+      "is_evolved": false,
+      "is_womens": false,
+      "quantity": 3,
+      "cost": 400,
+      "coins_spent": 400,
+      "value_burned": 0
+    },
+    {
+      "id": "card-20",
+      "rating": 84,
+      "positions": [
+        "LM"
+      ],
+      "nation": "Germany",
+      "league": "Bundesliga",
+      "club": "Bayern",
+      "card_type": "rare",
+      "promo_name": null,
+      "is_rare": true,
+      "is_totw": false,
+      "is_evolved": false,
+      "is_womens": false,
+      "quantity": 1,
+      "cost": 750,
+      "coins_spent": 750,
+      "value_burned": 0
+    },
+    {
+      "id": "card-21",
+      "rating": 86,
+      "positions": [
+        "ST"
+      ],
+      "nation": "Germany",
+      "league": "Serie A",
+      "club": "Inter",
+      "card_type": "rare",
+      "promo_name": null,
+      "is_rare": true,
+      "is_totw": false,
+      "is_evolved": false,
+      "is_womens": false,
+      "quantity": 3,
+      "cost": 1500,
+      "coins_spent": 1500,
+      "value_burned": 0
+    },
+    {
+      "id": "card-22",
+      "rating": 84,
+      "positions": [
+        "RB",
+        "LM"
+      ],
+      "nation": "England",
+      "league": "La Liga",
+      "club": "Barcelona",
+      "card_type": "rare",
+      "promo_name": null,
+      "is_rare": true,
+      "is_totw": false,
+      "is_evolved": false,
+      "is_womens": false,
+      "quantity": 3,
+      "cost": 750,
+      "coins_spent": 750,
+      "value_burned": 0
+    },
+    {
+      "id": "card-23",
+      "rating": 88,
+      "positions": [
+        "CAM",
+        "RM"
+      ],
+      "nation": "Portugal",
+      "league": "Bundesliga",
+      "club": "Dortmund",
+      "card_type": "common",
+      "promo_name": null,
+      "is_rare": false,
+      "is_totw": false,
+      "is_evolved": false,
+      "is_womens": false,
+      "quantity": 1,
+      "cost": 3037,
+      "coins_spent": 3037,
+      "value_burned": 0
+    },
+    {
+      "id": "card-24",
+      "rating": 87,
+      "positions": [
+        "GK"
+      ],
+      "nation": "France",
+      "league": "La Liga",
+      "club": "Real Madrid",
+      "card_type": "common",
+      "promo_name": null,
+      "is_rare": false,
+      "is_totw": false,
+      "is_evolved": false,
+      "is_womens": false,
+      "quantity": 1,
+      "cost": 2025,
+      "coins_spent": 2025,
+      "value_burned": 0
+    },
+    {
+      "id": "card-25",
+      "rating": 82,
+      "positions": [
+        "RM"
+      ],
+      "nation": "Italy",
+      "league": "Premier League",
+      "club": "Arsenal",
+      "card_type": "totw",
+      "promo_name": null,
+      "is_rare": true,
+      "is_totw": true,
+      "is_evolved": false,
+      "is_womens": false,
+      "quantity": 1,
+      "cost": 400,
+      "coins_spent": 400,
+      "value_burned": 0
+    },
+    {
+      "id": "card-26",
+      "rating": 88,
+      "positions": [
+        "LB"
+      ],
+      "nation": "Brazil",
+      "league": "Bundesliga",
+      "club": "Bayern",
+      "card_type": "totw",
+      "promo_name": null,
+      "is_rare": true,
+      "is_totw": true,
+      "is_evolved": false,
+      "is_womens": false,
+      "quantity": 1,
+      "cost": 3187,
+      "coins_spent": 3187,
+      "value_burned": 0
+    },
+    {
+      "id": "card-27",
+      "rating": 84,
+      "positions": [
+        "RB",
+        "CAM"
+      ],
+      "nation": "Germany",
+      "league": "Premier League",
+      "club": "Arsenal",
+      "card_type": "rare",
+      "promo_name": null,
+      "is_rare": true,
+      "is_totw": false,
+      "is_evolved": false,
+      "is_womens": false,
+      "quantity": 2,
+      "cost": 750,
+      "coins_spent": 750,
+      "value_burned": 0
+    },
+    {
+      "id": "card-28",
+      "rating": 80,
+      "positions": [
+        "GK",
+        "ST"
+      ],
+      "nation": "England",
+      "league": "La Liga",
+      "club": "Barcelona",
+      "card_type": "common",
+      "promo_name": null,
+      "is_rare": false,
+      "is_totw": false,
+      "is_evolved": false,
+      "is_womens": false,
+      "quantity": 3,
+      "cost": 250,
+      "coins_spent": 250,
+      "value_burned": 0
+    },
+    {
+      "id": "card-29",
+      "rating": 82,
+      "positions": [
+        "CDM"
+      ],
+      "nation": "France",
+      "league": "La Liga",
+      "club": "Barcelona",
+      "card_type": "common",
+      "promo_name": null,
+      "is_rare": false,
+      "is_totw": false,
+      "is_evolved": false,
+      "is_womens": false,
+      "quantity": 1,
+      "cost": 250,
+      "coins_spent": 250,
+      "value_burned": 0
+    },
+    {
+      "id": "card-30",
+      "rating": 84,
+      "positions": [
+        "RM",
+        "ST"
+      ],
+      "nation": "Italy",
+      "league": "Serie A",
+      "club": "Juventus",
+      "card_type": "common",
+      "promo_name": null,
+      "is_rare": false,
+      "is_totw": false,
+      "is_evolved": false,
+      "is_womens": false,
+      "quantity": 2,
+      "cost": 600,
+      "coins_spent": 600,
+      "value_burned": 0
+    },
+    {
+      "id": "card-31",
+      "rating": 80,
+      "positions": [
+        "CM",
+        "ST"
+      ],
+      "nation": "Italy",
+      "league": "Serie A",
+      "club": "Napoli",
+      "card_type": "totw",
+      "promo_name": null,
+      "is_rare": true,
+      "is_totw": true,
+      "is_evolved": false,
+      "is_womens": false,
+      "quantity": 1,
+      "cost": 400,
+      "coins_spent": 400,
+      "value_burned": 0
+    },
+    {
+      "id": "card-32",
+      "rating": 82,
+      "positions": [
+        "CAM"
+      ],
+      "nation": "Portugal",
+      "league": "La Liga",
+      "club": "Real Madrid",
+      "card_type": "rare",
+      "promo_name": null,
+      "is_rare": true,
+      "is_totw": false,
+      "is_evolved": false,
+      "is_womens": false,
+      "quantity": 1,
+      "cost": 400,
+      "coins_spent": 400,
+      "value_burned": 0
+    },
+    {
+      "id": "card-33",
+      "rating": 83,
+      "positions": [
+        "RM"
+      ],
+      "nation": "Spain",
+      "league": "Premier League",
+      "club": "Chelsea",
+      "card_type": "rare",
+      "promo_name": null,
+      "is_rare": true,
+      "is_totw": false,
+      "is_evolved": false,
+      "is_womens": false,
+      "quantity": 2,
+      "cost": 550,
+      "coins_spent": 550,
+      "value_burned": 0
+    },
+    {
+      "id": "card-34",
+      "rating": 84,
+      "positions": [
+        "LM",
+        "CB"
+      ],
+      "nation": "Argentina",
+      "league": "Premier League",
+      "club": "Liverpool",
+      "card_type": "rare",
+      "promo_name": null,
+      "is_rare": true,
+      "is_totw": false,
+      "is_evolved": true,
+      "is_womens": false,
+      "quantity": 2,
+      "cost": 750,
+      "coins_spent": 750,
+      "value_burned": 0
+    },
+    {
+      "id": "card-35",
+      "rating": 82,
+      "positions": [
+        "CDM",
+        "GK"
+      ],
+      "nation": "Spain",
+      "league": "Serie A",
+      "club": "Napoli",
+      "card_type": "rare",
+      "promo_name": null,
+      "is_rare": true,
+      "is_totw": false,
+      "is_evolved": false,
+      "is_womens": false,
+      "quantity": 1,
+      "cost": 400,
+      "coins_spent": 400,
+      "value_burned": 0
+    },
+    {
+      "id": "card-36",
+      "rating": 85,
+      "positions": [
+        "LB",
+        "CDM"
+      ],
+      "nation": "Italy",
+      "league": "Premier League",
+      "club": "Chelsea",
+      "card_type": "common",
+      "promo_name": null,
+      "is_rare": false,
+      "is_totw": false,
+      "is_evolved": false,
+      "is_womens": false,
+      "quantity": 3,
+      "cost": 900,
+      "coins_spent": 900,
+      "value_burned": 0
+    },
+    {
+      "id": "card-37",
+      "rating": 86,
+      "positions": [
+        "CM"
+      ],
+      "nation": "England",
+      "league": "La Liga",
+      "club": "Barcelona",
+      "card_type": "rare",
+      "promo_name": null,
+      "is_rare": true,
+      "is_totw": false,
+      "is_evolved": false,
+      "is_womens": false,
+      "quantity": 1,
+      "cost": 1500,
+      "coins_spent": 1500,
+      "value_burned": 0
+    },
+    {
+      "id": "card-38",
+      "rating": 84,
+      "positions": [
+        "CB"
+      ],
+      "nation": "England",
+      "league": "Bundesliga",
+      "club": "Bayern",
+      "card_type": "common",
+      "promo_name": null,
+      "is_rare": false,
+      "is_totw": false,
+      "is_evolved": false,
+      "is_womens": false,
+      "quantity": 1,
+      "cost": 600,
+      "coins_spent": 600,
+      "value_burned": 0
+    },
+    {
+      "id": "card-39",
+      "rating": 84,
+      "positions": [
+        "RB"
+      ],
+      "nation": "England",
+      "league": "Serie A",
+      "club": "Inter",
+      "card_type": "rare",
+      "promo_name": null,
+      "is_rare": true,
+      "is_totw": false,
+      "is_evolved": false,
+      "is_womens": false,
+      "quantity": 1,
+      "cost": 750,
+      "coins_spent": 750,
+      "value_burned": 0
+    },
+    {
+      "id": "card-40",
+      "rating": 83,
+      "positions": [
+        "RM",
+        "CAM"
+      ],
+      "nation": "Spain",
+      "league": "Premier League",
+      "club": "Everton",
+      "card_type": "common",
+      "promo_name": null,
+      "is_rare": false,
+      "is_totw": false,
+      "is_evolved": false,
+      "is_womens": false,
+      "quantity": 2,
+      "cost": 400,
+      "coins_spent": 400,
+      "value_burned": 0
+    },
+    {
+      "id": "card-41",
+      "rating": 83,
+      "positions": [
+        "LM",
+        "CDM"
+      ],
+      "nation": "Italy",
+      "league": "Serie A",
+      "club": "Inter",
+      "card_type": "common",
+      "promo_name": null,
+      "is_rare": false,
+      "is_totw": false,
+      "is_evolved": false,
+      "is_womens": false,
+      "quantity": 2,
+      "cost": 400,
+      "coins_spent": 400,
+      "value_burned": 0
+    },
+    {
+      "id": "card-42",
+      "rating": 85,
+      "positions": [
+        "GK"
+      ],
+      "nation": "Italy",
+      "league": "Premier League",
+      "club": "Arsenal",
+      "card_type": "common",
+      "promo_name": null,
+      "is_rare": false,
+      "is_totw": false,
+      "is_evolved": false,
+      "is_womens": false,
+      "quantity": 3,
+      "cost": 900,
+      "coins_spent": 900,
+      "value_burned": 0
+    },
+    {
+      "id": "card-43",
+      "rating": 81,
+      "positions": [
+        "RM",
+        "CAM"
+      ],
+      "nation": "France",
+      "league": "Premier League",
+      "club": "Everton",
+      "card_type": "totw",
+      "promo_name": null,
+      "is_rare": true,
+      "is_totw": true,
+      "is_evolved": false,
+      "is_womens": false,
+      "quantity": 1,
+      "cost": 400,
+      "coins_spent": 400,
+      "value_burned": 0
+    },
+    {
+      "id": "card-44",
+      "rating": 85,
+      "positions": [
+        "LM",
+        "CM"
+      ],
+      "nation": "Germany",
+      "league": "Serie A",
+      "club": "Napoli",
+      "card_type": "totw",
+      "promo_name": null,
+      "is_rare": true,
+      "is_totw": true,
+      "is_evolved": false,
+      "is_womens": false,
+      "quantity": 1,
+      "cost": 1050,
+      "coins_spent": 1050,
+      "value_burned": 0
+    },
+    {
+      "id": "card-45",
+      "rating": 86,
+      "positions": [
+        "RM",
+        "ST"
+      ],
+      "nation": "Germany",
+      "league": "Serie A",
+      "club": "Inter",
+      "card_type": "common",
+      "promo_name": null,
+      "is_rare": false,
+      "is_totw": false,
+      "is_evolved": false,
+      "is_womens": false,
+      "quantity": 2,
+      "cost": 1350,
+      "coins_spent": 1350,
+      "value_burned": 0
+    },
+    {
+      "id": "card-46",
+      "rating": 84,
+      "positions": [
+        "LM",
+        "RM"
+      ],
+      "nation": "England",
+      "league": "La Liga",
+      "club": "Barcelona",
+      "card_type": "common",
+      "promo_name": null,
+      "is_rare": false,
+      "is_totw": false,
+      "is_evolved": false,
+      "is_womens": false,
+      "quantity": 1,
+      "cost": 600,
+      "coins_spent": 600,
+      "value_burned": 0
+    },
+    {
+      "id": "card-47",
+      "rating": 83,
+      "positions": [
+        "ST",
+        "LB"
+      ],
+      "nation": "Germany",
+      "league": "Premier League",
+      "club": "Liverpool",
+      "card_type": "common",
+      "promo_name": null,
+      "is_rare": false,
+      "is_totw": false,
+      "is_evolved": false,
+      "is_womens": false,
+      "quantity": 1,
+      "cost": 400,
+      "coins_spent": 400,
+      "value_burned": 0
+    },
+    {
+      "id": "card-48",
+      "rating": 80,
+      "positions": [
+        "RB",
+        "CAM"
+      ],
+      "nation": "Argentina",
+      "league": "Serie A",
+      "club": "Juventus",
+      "card_type": "rare",
+      "promo_name": null,
+      "is_rare": true,
+      "is_totw": false,
+      "is_evolved": false,
+      "is_womens": false,
+      "quantity": 2,
+      "cost": 400,
+      "coins_spent": 400,
+      "value_burned": 0
+    },
+    {
+      "id": "card-49",
+      "rating": 84,
+      "positions": [
+        "CDM"
+      ],
+      "nation": "Germany",
+      "league": "Premier League",
+      "club": "Chelsea",
+      "card_type": "rare",
+      "promo_name": null,
+      "is_rare": true,
+      "is_totw": false,
+      "is_evolved": false,
+      "is_womens": false,
+      "quantity": 3,
+      "cost": 750,
+      "coins_spent": 750,
+      "value_burned": 0
+    }
+  ]
+}
