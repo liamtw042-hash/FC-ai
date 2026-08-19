@@ -173,9 +173,10 @@ not 2).
 
 ---
 
-## P-007 League +3 at 8, optional
+## P-007 League +3 at 8
 
-**Status:** open, **lowest priority, only if you want the last step pinned**
+**Status:** open, lower priority than P-005 and P-006, but **live, not optional in the
+sense of harmless**
 **Needs:** the game open. One Concept Squad.
 
 **Do:** eight players from the same league at eight different clubs, with all eleven
@@ -183,8 +184,35 @@ nationalities distinct, plus three players sharing a fourth league between them.
 **Report:** squad chemistry total and all eleven individual values.
 **Expected:** the eight on 3 each, the three on 1 each. Total 27.
 
-**Why it is last.** It pins league +3 at 8, the only live step P-005 and P-006 leave
-open. Nation +3 at 8 comes from the same source sentence, so this reading is evidence
-for both. No fixture has been written for it: writing one now would park a permanently
-pending entry in the startup warning for a reading that may never be taken. Say the word
-and `gt-005` appears.
+**Why it is live.** Unlike club +3 at 7, nothing masks this step. Eight league mates at
+distinct clubs and nations read **3** if the step fires at 8 and **2** if it does not, so
+a wrong value here really does change squads. It sits in the live tier of the startup
+warning with this entry as its clearer.
+
+**No fixture.** Writing `gt-005` now would park a permanently pending fixture for a
+reading that may never be taken. The warning entry without a fixture is the right shape.
+Say the word and the fixture appears.
+
+---
+
+## P-008 Nation +3 at 8
+
+**Status:** open, same priority as P-007
+**Needs:** the game open. One Concept Squad.
+
+**Do:** eight players sharing a nationality, at eight different clubs in eight different
+leagues, plus three more with distinct nationalities, clubs and leagues.
+**Report:** squad chemistry total and all eleven individual values.
+**Expected:** the eight on 3 each, the three on 0. Total 24.
+
+**Why it exists.** It was missing. Nation +3 at 8 is exactly as observable as league +3
+at 8: eight countrymen at distinct clubs and leagues read 3 if the step fires and 2 if it
+does not, and nation entangles with nothing so there is no masking at all. It belongs in
+the live tier and needed a clearer of its own.
+
+**The harder part is sourcing it.** Eight players of one nationality across eight
+different leagues is a real chore compared with the other probes. If it stays untaken
+that is fine, and the warning will keep saying the step is unverified rather than
+pretending otherwise.
+
+**No fixture**, for the same reason as P-007.

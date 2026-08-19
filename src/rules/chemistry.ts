@@ -44,6 +44,19 @@ export const LEAGUE_THRESHOLDS: ThresholdLadder = [
   [3, 1],
 ]
 
+/** The three ladders together, so a caller can substitute a hypothetical set. */
+export interface ChemistryLadders {
+  club: ThresholdLadder
+  nation: ThresholdLadder
+  league: ThresholdLadder
+}
+
+export const DEFAULT_LADDERS: ChemistryLadders = {
+  club: CLUB_THRESHOLDS,
+  nation: NATION_THRESHOLDS,
+  league: LEAGUE_THRESHOLDS,
+}
+
 export function pointsFor(count: number, ladder: ThresholdLadder): number {
   for (const [needed, points] of ladder) {
     if (count >= needed) return points
@@ -117,9 +130,15 @@ function managerBonusFor(placed: PlacedPlayer, manager: Manager | undefined): nu
   return matches ? 1 : 0
 }
 
+/**
+ * ladders is substitutable so that observability can be MEASURED rather than
+ * asserted. See ruleFacts.ts and observability.test.ts: a threshold step counts
+ * as live only if perturbing it actually changes some squad's chemistry.
+ */
 export function calculateChemistry(
   players: readonly PlacedPlayer[],
   manager?: Manager,
+  ladders: ChemistryLadders = DEFAULT_LADDERS,
 ): ChemistryResult {
   const gate = players.map(isInPosition)
   const counts = tally(players, gate)
@@ -143,9 +162,9 @@ export function calculateChemistry(
     const clubPoints =
       definition.club === null
         ? 0
-        : pointsFor(counts.clubs.get(definition.club) ?? 0, CLUB_THRESHOLDS)
-    const nationPoints = pointsFor(counts.nations.get(definition.nation) ?? 0, NATION_THRESHOLDS)
-    const leaguePoints = pointsFor(leagueCount(counts, definition.league), LEAGUE_THRESHOLDS)
+        : pointsFor(counts.clubs.get(definition.club) ?? 0, ladders.club)
+    const nationPoints = pointsFor(counts.nations.get(definition.nation) ?? 0, ladders.nation)
+    const leaguePoints = pointsFor(leagueCount(counts, definition.league), ladders.league)
     const managerBonus = managerBonusFor(placed, manager)
 
     // Icons, Heroes and Festival of Football Captains sit at 3 when in position,

@@ -8,7 +8,8 @@
  * gate compares a card's preferred positions against the slot label exactly: a slot
  * this table calls CDM that the game calls CM would silently zero a player's
  * chemistry. Ground truth fixtures verify this implicitly, since a fixture records
- * its formation and every player's individual chemistry. See PENDING.md P-004.
+ * its formation and every player's individual chemistry. See PENDING.md P-004 and
+ * the `formations:slot_labels` entry in ruleFacts.ts.
  */
 
 import type { Formation } from '../types/squad'

@@ -108,6 +108,8 @@ class TestThePositioningGate:
 
         both = solve(pool, slots, chemistry=config())
         assert both.squad_chemistry == 6
+        before = {p.card_id: p.chemistry for p in both.placements}
+        assert [before[f"a{i}"] for i in range(3)] == [2, 2, 2]
 
         # Make one of them unable to play any slot in this formation. It scores
         # nothing itself AND stops counting, so the club count falls to 2 and the
@@ -116,7 +118,16 @@ class TestThePositioningGate:
         pool[2] = card("a2", club="Alpha", league="League A", positions=["GK"])
         misplaced = solve(pool, slots, chemistry=config())
         assert misplaced.squad_chemistry == 2
-        # One misplacement, four chemistry gone, and only one of the four was its own.
+
+        # The DECOMPOSITION is asserted, not just the total, because the total
+        # alone is consistent with several different collapses.
+        after = {p.card_id: p.chemistry for p in misplaced.placements}
+        assert after["a2"] == 0, "the misplaced player loses its own 2"
+        assert [after["a0"], after["a1"]] == [1, 1], "the survivors lose 1 each"
+        # Four chemistry gone: two of them the misplaced player's own, two taken
+        # off the survivors by its no longer counting.
+        assert (before["a2"] - after["a2"]) == 2
+        assert sum(before[f"a{i}"] - after[f"a{i}"] for i in (0, 1)) == 2
 
     def test_an_icon_out_of_position_is_zero_not_three(self):
         pool = [card("icon", card_type="icon", club=None, league=None, positions=["ST"])]

@@ -130,6 +130,23 @@ export interface OwnedCard {
   inActiveSquad: boolean
   squadName?: string
   estimatedPrice: number | null
+  /** Manually flagged as a keeper. Feeds the auto lock rules, never the solver. */
+  favourite?: boolean
+  /**
+   * Where each status field came from. A field nobody ever screenshotted is
+   * DEFAULTED, not known, and the club page shows the coverage rather than
+   * quietly assuming. See RESEARCH.md 8.2.
+   */
+  provenance?: StatusProvenance
+}
+
+export type FieldSource = 'observed' | 'defaulted'
+
+export interface StatusProvenance {
+  untradeable: FieldSource
+  isLoan: FieldSource
+  locked: FieldSource
+  inActiveSquad: FieldSource
 }
 
 /** An owned stack joined to its definition, which is what the solver consumes. */

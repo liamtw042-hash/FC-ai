@@ -18,14 +18,14 @@
 
 import type { CardTypeRegistry } from './cardTypes'
 import type { GroundTruthFixture } from '../types/squad'
-import { FORMATIONS_SOURCE, FORMATIONS_VERIFIED } from './formations'
+import { unverifiedRuleFacts, type RuleFactKind } from './ruleFacts'
 
 export type VerificationTier = 'live' | 'unobservable'
 
 export interface UnverifiedItem {
   /** Stable id, so a report can be diffed run to run. */
   id: string
-  kind: 'card_type' | 'ground_truth_fixture' | 'formation_table' | 'threshold_step'
+  kind: RuleFactKind | 'card_type' | 'ground_truth_fixture'
   tier: VerificationTier
   what: string
   basis: string
@@ -34,42 +34,35 @@ export interface UnverifiedItem {
 }
 
 /**
- * Rule steps that are unverified and can never be verified, because they have no
- * observable consequence. Listing them is how we avoid quietly forgetting that
- * they were never checked, without pretending they are a risk.
+ * THE TIER CRITERION, in one function.
+ *
+ * Live means a wrong value could change a returned squad. It is NOT "a reading is
+ * queued for it". A rule with no queued reading is still live if getting it wrong
+ * would change a squad; a rule with an obvious reading is still unobservable if
+ * nothing downstream can see it.
+ *
+ * For threshold steps `observable` is measured rather than declared. See
+ * observability.test.ts, which perturbs each step and checks whether any squad's
+ * chemistry actually moves.
  */
-export const UNOBSERVABLE_RULE_STEPS: UnverifiedItem[] = [
-  {
-    id: 'threshold:club_plus_3_at_7',
-    kind: 'threshold_step',
-    tier: 'unobservable',
-    what: 'Club +3 at 7 clubmates',
-    basis:
-      'Inert, not merely unverified. Clubmates are always league mates, so by four ' +
-      'clubmates a player already holds club +2 plus league +1, which is the 3 point ' +
-      'cap. Every group of four or more reads 3 whatever this step does, so it cannot ' +
-      'change any chemistry total and therefore cannot change any solution.',
-    pendingRef: null,
-  },
-]
+export function tierFor(couldChangeAReturnedSquad: boolean): VerificationTier {
+  return couldChangeAReturnedSquad ? 'live' : 'unobservable'
+}
 
 export function collectUnverified(
   registry: CardTypeRegistry,
   fixtures: readonly GroundTruthFixture[] = [],
 ): UnverifiedItem[] {
-  const items: UnverifiedItem[] = [...UNOBSERVABLE_RULE_STEPS]
+  const items: UnverifiedItem[] = []
 
-  if (!FORMATIONS_VERIFIED) {
+  for (const fact of unverifiedRuleFacts()) {
     items.push({
-      id: 'formations:slot_labels',
-      kind: 'formation_table',
-      tier: 'live',
-      what: 'Formation slot labels',
-      basis:
-        FORMATIONS_SOURCE +
-        ' A slot labelled CDM here that the game calls CM would silently zero a ' +
-        "player's chemistry.",
-      pendingRef: 'P-004',
+      id: fact.id,
+      kind: fact.kind,
+      tier: tierFor(fact.observable),
+      what: fact.what,
+      basis: `${fact.source} ${fact.reason}`,
+      pendingRef: fact.pendingRef,
     })
   }
 
@@ -77,7 +70,9 @@ export function collectUnverified(
     items.push({
       id: `card_type:${type.id}`,
       kind: 'card_type',
-      tier: 'live',
+      // A contribution weight feeds every threshold count, so a wrong one moves
+      // real squads. Always live.
+      tier: tierFor(true),
       what: `${type.displayName} chemistry contribution`,
       basis: type.source,
       pendingRef: type.pendingRef ?? null,
@@ -89,7 +84,9 @@ export function collectUnverified(
     items.push({
       id: `fixture:${fixture.id}`,
       kind: 'ground_truth_fixture',
-      tier: 'live',
+      // A pending fixture is a queued reading whose expected values are still
+      // documented rather than observed, so the rules it would confirm are live.
+      tier: tierFor(true),
       what: `${fixture.id}, expects rating ${fixture.displayedRating}`,
       basis: fixture.source,
       pendingRef: fixture.pendingRef ?? null,
