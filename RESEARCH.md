@@ -391,11 +391,20 @@ eleventh 84 with an 85, 86, 87, 88 or 89 moves the squad rating **not one point*
 stays 84 the whole way and only ticks to 85 at 90. Buy the 89 and you paid a lot for
 nothing. That is the trap worth preserving, it is preserved, and it is tested.
 
-**Decision needed.** Either the sentence in 4.1 goes, or it describes something real that
-the formula does not capture and the formula is wrong. I think it is the first: the
-sentence looks like a half remembered version of the genuine effect above, where a better
-player buys nothing rather than costing you a point. Tell me which and I will update the
-brief text accordingly. Nothing is blocked either way, the engine implements the formula.
+**RESOLVED.** The sentence is wrong and is deleted from the brief. You verified the ten 84s
+case by hand independently: 85 through 89 all give 84, and it only ticks over at 90.
+
+**Both monotonicity tests stay, and here is what they actually mean.** They are not
+regression tests on the implementation. Monotonicity is a **consequence of the exact
+correction factor**, which is to say it follows from the formula itself, not from how we
+coded it. The implementation cannot violate it without also failing the equivalence
+property test against the literal transcription.
+
+So the tests are pointed outward, at the formula. If you ever observe the game lowering a
+squad rating after a player is upgraded, that observation **falsifies the formula in 4.1,
+not our implementation of it.** The correct response would be to change the formula and to
+add the observed squad as a ground truth fixture, not to relax the tests. That is the only
+reading under which these tests can ever fail, and it is why they are worth keeping.
 
 ## 5. Disagreements and gaps in the rest of the brief
 

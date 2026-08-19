@@ -12,18 +12,33 @@ export interface Formation {
   slots: string[]
 }
 
-/** One starter placed into one slot. */
+/** One starter placed into one slot. An INPUT to the rules engine. */
 export interface PlacedPlayer {
   card: ResolvedCard
   slotIndex: number
   slotPosition: string
+}
+
+/** Per player chemistry, an OUTPUT. Ground truth fixtures record these individually. */
+export interface PlayerChemistry {
+  slotIndex: number
   /**
    * The positioning gate. False means this player earns 0 chemistry AND
    * contributes nothing to anyone else's thresholds.
    */
   inPosition: boolean
-  /** 0 to 3. */
+  clubPoints: number
+  nationPoints: number
+  leaguePoints: number
+  managerBonus: number
+  /** 0 to 3, after the cap. */
   chemistry: number
+}
+
+export interface ChemistryResult {
+  /** Sum of the per player values. 0 to 33. */
+  total: number
+  players: PlayerChemistry[]
 }
 
 /** An optional manager. Off by default. */
@@ -41,9 +56,7 @@ export interface Squad {
 export interface SquadEvaluation {
   /** Section 4.1. floor(round(SUM + CF) / 11). Step 5 is floor, see RESEARCH.md 4.1. */
   rating: number
-  /** Sum over the 11 starters, capped at 3 each, so at most 33. */
-  chemistry: number
-  perPlayerChemistry: number[]
+  chemistry: ChemistryResult
 }
 
 /** One player row in a ground truth fixture. */
