@@ -11,8 +11,10 @@ import {
   collectUnverified,
   formatStartupWarning,
   liveItems,
+  queuedReadings,
   unobservableItems,
 } from './verification'
+import { RULE_FACTS } from './ruleFacts'
 import { defaultCardTypeRegistry } from './cardTypes'
 import { getFormation, listFormations } from './formations'
 import type { GroundTruthFixture } from '../types/squad'
@@ -137,12 +139,13 @@ describe('formations', () => {
 })
 
 describe('the startup warning', () => {
-  const items = collectUnverified(defaultCardTypeRegistry, groundTruth.fixtures)
+  const items = collectUnverified(defaultCardTypeRegistry)
+  const readings = queuedReadings(groundTruth.fixtures, items)
 
   it('lists every inferred value with the PENDING entry that would clear it', () => {
     const ids = items.map((i) => i.id)
     expect(ids).toContain('card_type:fof_captain')
-    expect(ids).toContain('fixture:gt-001-floor-vs-round')
+    expect(ids).toContain('rating:step5_floor')
 
     const captain = items.find((i) => i.id === 'card_type:fof_captain')!
     expect(captain.pendingRef).toBe('P-002')
@@ -164,7 +167,7 @@ describe('the startup warning', () => {
   })
 
   it('only the live tier is told it may produce wrong solutions', () => {
-    const text = formatStartupWarning(items)
+    const text = formatStartupWarning(items, readings)
     expect(text).toContain('UNVERIFIED AND LIVE')
     expect(text).toContain('may be wrong in ways the tests cannot catch')
 
@@ -184,10 +187,53 @@ describe('the startup warning', () => {
       'All game rules that can affect a solution are verified',
     )
   })
+
+  describe('the count has to be trustworthy or the warning is noise', () => {
+    it('counts unverified RULE VALUES, and every item is one', () => {
+      const expected =
+        RULE_FACTS.filter((f) => !f.verified).length + defaultCardTypeRegistry.unverified().length
+      expect(items).toHaveLength(expected)
+      expect(liveItems(items)).toHaveLength(
+        RULE_FACTS.filter((f) => !f.verified && f.observable).length +
+          defaultCardTypeRegistry.unverified().length,
+      )
+    })
+
+    it('never lists a fixture as an item, because a fixture is an instrument', () => {
+      // gt-001 and rule fact rating:step5_floor are ONE uncertainty, both cleared
+      // by P-001. Listing both inflated the live count and made it untrustworthy.
+      expect(items.some((i) => i.kind === 'ground_truth_fixture')).toBe(false)
+      expect(items.some((i) => i.id.startsWith('fixture:'))).toBe(false)
+    })
+
+    it('has no duplicate ids', () => {
+      const ids = items.map((i) => i.id)
+      expect(new Set(ids).size).toBe(ids.length)
+    })
+
+    it('reports queued readings separately, each naming what it clears', () => {
+      const floorReading = readings.find((r) => r.fixtureId === 'gt-001-floor-vs-round')!
+      expect(floorReading.pendingRef).toBe('P-001')
+      expect(floorReading.clears).toEqual(['rating:step5_floor'])
+
+      const nationReading = readings.find((r) => r.fixtureId === 'gt-004-nation-ladder')!
+      expect(nationReading.clears).toEqual(
+        expect.arrayContaining(['threshold:nation@2', 'threshold:nation@5']),
+      )
+    })
+
+    it('says out loud that a queued reading is not an extra risk', () => {
+      const text = formatStartupWarning(items, readings)
+      expect(text).toContain('instruments, not extra')
+    })
+  })
 })
 
 afterAll(() => {
   const report = runAllFixtures(groundTruth.fixtures)
-  const items = collectUnverified(defaultCardTypeRegistry, groundTruth.fixtures)
-  console.log(['', 'Ground truth', formatReport(report), '', formatStartupWarning(items)].join('\n'))
+  const items = collectUnverified(defaultCardTypeRegistry)
+  const readings = queuedReadings(groundTruth.fixtures, items)
+  console.log(
+    ['', 'Ground truth', formatReport(report), '', formatStartupWarning(items, readings)].join('\n'),
+  )
 })

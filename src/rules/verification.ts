@@ -14,6 +14,20 @@
  * together trains the reader to skim past it, and then the live items get skimmed
  * past too. The unobservable tier is still printed, because knowing a rule cannot
  * be checked is worth knowing, but it is printed as a footnote and never as a risk.
+ *
+ * WHAT COUNTS AS AN ITEM, which is the part that has to be trustworthy.
+ *
+ * An item is an unverified RULE VALUE: a threshold step, a card type's
+ * contribution weights, the rating formula's last step, the formation slot labels.
+ * A pending ground truth fixture is NOT an item. A fixture is the INSTRUMENT that
+ * would clear one or more rule values, so listing it alongside them counts the
+ * same uncertainty twice.
+ *
+ * That was a real defect. gt-001 and rule fact rating:step5_floor are one
+ * uncertainty and both cleared by P-001; gt-002 and gt-003 sit on top of four club
+ * and league steps, all cleared by P-005. Counting them separately inflated the
+ * live count from 11 to 15. Fixtures are now reported as queued readings, grouped
+ * by the PENDING entry they belong to, and never as risks.
  */
 
 import type { CardTypeRegistry } from './cardTypes'
@@ -49,10 +63,7 @@ export function tierFor(couldChangeAReturnedSquad: boolean): VerificationTier {
   return couldChangeAReturnedSquad ? 'live' : 'unobservable'
 }
 
-export function collectUnverified(
-  registry: CardTypeRegistry,
-  fixtures: readonly GroundTruthFixture[] = [],
-): UnverifiedItem[] {
+export function collectUnverified(registry: CardTypeRegistry): UnverifiedItem[] {
   const items: UnverifiedItem[] = []
 
   for (const fact of unverifiedRuleFacts()) {
@@ -79,21 +90,30 @@ export function collectUnverified(
     })
   }
 
-  for (const fixture of fixtures) {
-    if (fixture.pending_verification !== true) continue
-    items.push({
-      id: `fixture:${fixture.id}`,
-      kind: 'ground_truth_fixture',
-      // A pending fixture is a queued reading whose expected values are still
-      // documented rather than observed, so the rules it would confirm are live.
-      tier: tierFor(true),
-      what: `${fixture.id}, expects rating ${fixture.displayedRating}`,
-      basis: fixture.source,
-      pendingRef: fixture.pendingRef ?? null,
-    })
-  }
-
   return items.sort((a, b) => a.id.localeCompare(b.id))
+}
+
+/** A reading that would clear one or more rule values. An instrument, not a risk. */
+export interface QueuedReading {
+  fixtureId: string
+  pendingRef: string | null
+  /** Rule value ids this reading would clear. */
+  clears: string[]
+}
+
+export function queuedReadings(
+  fixtures: readonly GroundTruthFixture[],
+  items: readonly UnverifiedItem[],
+): QueuedReading[] {
+  return fixtures
+    .filter((fixture) => fixture.pending_verification === true)
+    .map((fixture) => ({
+      fixtureId: fixture.id,
+      pendingRef: fixture.pendingRef ?? null,
+      clears: items
+        .filter((item) => item.pendingRef !== null && item.pendingRef === fixture.pendingRef)
+        .map((item) => item.id),
+    }))
 }
 
 export function liveItems(items: readonly UnverifiedItem[]): UnverifiedItem[] {
@@ -104,7 +124,10 @@ export function unobservableItems(items: readonly UnverifiedItem[]): UnverifiedI
   return items.filter((item) => item.tier === 'unobservable')
 }
 
-export function formatStartupWarning(items: readonly UnverifiedItem[]): string {
+export function formatStartupWarning(
+  items: readonly UnverifiedItem[],
+  readings: readonly QueuedReading[] = [],
+): string {
   const live = liveItems(items)
   const unobservable = unobservableItems(items)
   const lines: string[] = []
@@ -122,6 +145,20 @@ export function formatStartupWarning(items: readonly UnverifiedItem[]): string {
         `    clear it: ${item.pendingRef === null ? 'no PENDING entry yet' : `PENDING.md ${item.pendingRef}`}`,
       )
       lines.push('')
+    }
+  }
+
+  if (readings.length > 0) {
+    lines.push('')
+    lines.push(
+      `${readings.length} reading(s) queued in PENDING.md. These are instruments, not extra`,
+    )
+    lines.push('risks: each one clears rule values already counted above.')
+    lines.push('')
+    for (const reading of readings) {
+      const ref = reading.pendingRef === null ? 'no PENDING entry' : reading.pendingRef
+      const clears = reading.clears.length === 0 ? 'nothing currently listed' : reading.clears.join(', ')
+      lines.push(`  ${reading.fixtureId} (${ref}) clears: ${clears}`)
     }
   }
 

@@ -22,7 +22,11 @@ import {
   runFixture,
   validateFixture,
 } from '../src/rules/groundTruth.ts'
-import { collectUnverified, formatStartupWarning } from '../src/rules/verification.ts'
+import {
+  collectUnverified,
+  formatStartupWarning,
+  queuedReadings,
+} from '../src/rules/verification.ts'
 import { defaultCardTypeRegistry } from '../src/rules/cardTypes.ts'
 import type { GroundTruthFixture } from '../src/types/squad.ts'
 
@@ -110,7 +114,8 @@ function check(): number {
   console.log('Ground truth')
   console.log(formatReport(report))
   console.log('')
-  console.log(formatStartupWarning(collectUnverified(defaultCardTypeRegistry, file.fixtures)))
+  const unverified = collectUnverified(defaultCardTypeRegistry)
+  console.log(formatStartupWarning(unverified, queuedReadings(file.fixtures, unverified)))
   return report.failed === 0 ? 0 : 1
 }
 

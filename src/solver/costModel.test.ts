@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { costOf, pricePool, summarise } from './costModel'
+import { costOf, pricePool, solverCostOffset, summarise } from './costModel'
 import { FilePriceProvider } from './fileProvider'
 import { DEFAULT_COST_WEIGHTS } from '../types/solver'
 import { resolvedCard } from '../../tests/support/factories'
@@ -77,6 +77,92 @@ describe('the preference order from brief 8', () => {
     // Squad size is fixed at eleven, so a negative cost cannot cause the solver
     // to over fill. It just makes burning dupes strictly preferred.
     expect(weighted({ untradeable: true, quantity: 5 })).toBeLessThan(0)
+  })
+})
+
+describe('the solver objective can never go negative', () => {
+  // Inside one squad a negative cost is harmless, because size is fixed at eleven
+  // and a constant shift cannot reorder anything. Across a multi squad solve it is
+  // a live bug: a squad costing less than nothing makes an eighth squad look like
+  // a gain. The fix is a constant offset, not a clamp, because a clamp would
+  // flatten two negative squads and destroy the ordering the bonuses exist for.
+
+  const pathological = {
+    untradeableCost: -500,
+    duplicateBonus: -1000,
+    sbcStorageBonus: -750,
+    unknownPriceDefault: 1000,
+    overshootPenaltyPerPoint: 50,
+  }
+
+  it('the offset absorbs exactly the negative weights and nothing more', () => {
+    expect(solverCostOffset(DEFAULT_COST_WEIGHTS)).toBe(150)
+    expect(solverCostOffset(pathological)).toBe(2250)
+    // A positive weight cannot push a cost below zero, so it must not inflate
+    // the offset.
+    expect(
+      solverCostOffset({ ...DEFAULT_COST_WEIGHTS, untradeableCost: 9999 }),
+    ).toBe(150)
+  })
+
+  it('is non negative for every combination of card state, on default weights', () => {
+    for (const untradeable of [true, false]) {
+      for (const quantity of [1, 5]) {
+        for (const pool of ['club', 'sbc_storage'] as const) {
+          for (const coins of [0, 1, 100_000]) {
+            const cost = costOf(card({ untradeable, quantity, pool }), price(coins))
+            expect(cost.solverCost).toBeGreaterThanOrEqual(0)
+          }
+        }
+      }
+    }
+  })
+
+  it('is non negative even under weights chosen to break it', () => {
+    const worst = costOf(
+      card({ untradeable: true, quantity: 9, pool: 'sbc_storage' }),
+      price(0),
+      { weights: pathological, source: 'club' },
+    )
+    expect(worst.weightedCost).toBeLessThan(0)
+    expect(worst.solverCost).toBe(0)
+  })
+
+  it('preserves the within squad ordering exactly, because the shift is constant', () => {
+    const squadA = [
+      card({ untradeable: true, quantity: 3 }),
+      card({ untradeable: false, quantity: 1 }),
+    ]
+    const squadB = [
+      card({ untradeable: false, quantity: 1 }),
+      card({ untradeable: false, quantity: 1 }),
+    ]
+    const total = (cards: ResolvedCard[], key: 'weightedCost' | 'solverCost') =>
+      cards.reduce((sum, c) => sum + costOf(c, price(1000))[key], 0)
+
+    // Same winner under both, and the gap between them is identical.
+    expect(total(squadA, 'weightedCost')).toBeLessThan(total(squadB, 'weightedCost'))
+    expect(total(squadA, 'solverCost')).toBeLessThan(total(squadB, 'solverCost'))
+    expect(total(squadB, 'solverCost') - total(squadA, 'solverCost')).toBe(
+      total(squadB, 'weightedCost') - total(squadA, 'weightedCost'),
+    )
+  })
+
+  it('so an extra squad always costs something, never nothing', () => {
+    const squad = Array.from({ length: 11 }, () =>
+      card({ untradeable: true, quantity: 9, pool: 'sbc_storage' }),
+    )
+    const perSquad = squad.reduce((sum, c) => sum + costOf(c, price(0)).solverCost, 0)
+    expect(perSquad).toBeGreaterThanOrEqual(0)
+    // Under the raw weighted cost this squad is worth minus 1650 to build, which
+    // is exactly the trap.
+    expect(squad.reduce((sum, c) => sum + costOf(c, price(0)).weightedCost, 0)).toBeLessThan(0)
+  })
+
+  it('refuses a negative price rather than absorbing it', () => {
+    expect(() => costOf(card(), { coins: -1, basis: 'manual' as never, asOf: null })).toThrow(
+      /price cannot be negative/,
+    )
   })
 })
 
