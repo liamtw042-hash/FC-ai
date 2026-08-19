@@ -4,9 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "devDependencies": {
-    "typescript": "^5.7.2"
+    "@types/node": "^26.2.0",
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.11"
   }
 }

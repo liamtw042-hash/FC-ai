@@ -67,9 +67,9 @@ Architecture constraints that come with the decision, all binding:
 - **The loader ships with a schema mapping file**, as Section 3.1 requires, so a different
   dump can be swapped in later without a code change.
 
-### 0.3 New blocker: FutDB is also unreachable from this environment
+### 0.3 FutDB is unreachable from here, and that no longer blocks anything
 
-Acting on decision 1, I probed FutDB before writing anything against it:
+Probed before writing anything against it:
 
 | Host | Result |
 |---|---|
@@ -78,41 +78,42 @@ Acting on decision 1, I probed FutDB before writing anything against it:
 | `futdb.app/docs` | CONNECT tunnel failed, 403 |
 | `futdatabase.com` | CONNECT tunnel failed, 403 |
 
-These are organisation egress policy denials at the proxy, the same class as 0.1. The proxy
-documentation is explicit that these must be reported rather than retried or routed around,
-and I have not attempted to route around them.
+Organisation egress policy denials, same class as 0.1, not retried and not routed around.
 
-**Two consequences.**
+**Their terms, read by you and recorded here as fact:**
 
-First, you asked me to read FutDB's terms and rate limit documentation and report both here
-before writing the loader. **I cannot read either.** What I could establish from secondary
-sources, and which must be treated as unconfirmed until someone reads the docs page directly:
+- A free key is the entry point. Confirmed.
+- **Some endpoints are premium only.** Confirmed verbatim in their FAQ. A 403 on free is
+  therefore an expected condition to be handled, not a crash.
+- **Prices are premium only**, and there is **no bulk price endpoint and never will be**,
+  so prices are one request per card even on premium. This kills FutDB as a price source.
+  See 8.1.
+- **Rate limits:** their plan table lists 5,000 requests per day at the lowest tier and
+  20,000 at the higher ones, and above 20,000 you contact them. **The free tier figure is
+  not published anywhere public.** So it stays uninvented.
+- **Redistribution:** no terms page found at all. The seed database is treated as non
+  redistributable. Local DB gitignored, repo ships loader plus mapping plus a download
+  instruction.
 
-- An API key is free to create, and the free key is the normal entry point.
-- Some endpoints are premium only, so a free key may not reach every endpoint the loader
-  wants. This is the item most likely to bite the loader.
-- A premium subscription raises the request limit, and above 20,000 requests per day they
-  ask you to contact them. That figure appears to describe a paid tier ceiling rather than
-  the free tier limit, and I could not find the free tier number at all.
-- No statement about redistribution was findable, which matters because Section 3.1 asks
-  whether the seed database can be committed to the repo. **Assume it cannot** until the
-  terms are read. The loader will therefore write to a gitignored local database and the
-  repo will ship the loader plus mapping file plus a download instruction, which is the
-  fallback Section 3.1 already anticipates.
+**Checkpoint 2 is unblocked**, because the loader was never meant to run in this sandbox.
+It is written here and executed on your machine. The shape:
 
-Second, the pull itself cannot run here. The loader can be written, unit tested against
-recorded fixtures and made ready, but the one time fetch has to execute somewhere with
-normal internet access, which means on your machine with your key.
+- Loader plus field mapping file, so a different dump swaps in without a code change.
+- **A recorded sample response committed as a test fixture**, constructed from the
+  documented response shape, with the mapping unit tested against it offline. That is the
+  verification, not a live call.
+- **No hardcoded rate limit.** Read it from response headers when the API supplies them,
+  otherwise from config with a deliberately conservative default of **2 requests per second
+  and 4,000 per day**.
+- Exponential backoff on 429, and the pull is **resumable**, checkpointing progress so a
+  mid pull throttle does not lose completed work.
+- A 403 on any endpoint means "premium only, skip and record", and the pull ends with a
+  **coverage report** naming every field that came back null or unavailable.
 
-**What I need, and it is small:** paste the FutDB terms and rate limit page, or confirm the
-four bullets above yourself. Then I write the loader against known limits rather than
-guessed ones. Until then I am not writing request pacing code against a rate limit I
-invented.
+Still to come from you: the real free tier limit and which endpoints 403, once you have
+registered a key and read the docs behind the signup.
 
-**This does not stall anything else.** Checkpoints 3 through 12 are pure computation and
-need no network at all. I am proceeding down that path and will land checkpoint 2 when the
-terms are confirmed. That is the only reordering of Section 11 and it is forced by the
-proxy, not chosen.
+---
 
 ---
 
@@ -354,11 +355,53 @@ Section 4.1's warning about upgrading your worst player lowering the rating is c
 falls straight out of the maths. It will be preserved and I will add a test that asserts it,
 so nobody "fixes" that either.
 
+### 4.2 NEW FINDING: the counterintuitive behaviour in 4.1 does not exist
+
+Section 4.1 says:
+
+> Preserve the counterintuitive behaviour: upgrading your worst player can lower the
+> squad rating, because it lifts the average and shrinks everyone's correction factor.
+> Do not "fix" it.
+
+**Under the formula in 4.1, that cannot happen.** I am not fixing it and I am not
+quietly dropping it, I am telling you it is not there.
+
+**The algebra.** Increase one rating by d > 0. The average rises by d/11, so every
+other above-average player's correction term loses d/11.
+
+- If the upgraded player is below the average and stays below it, SUM gains d and CF
+  loses k'·d/11 where k' is the number of other above-average players. k' is at most 10,
+  so SUM + CF changes by at least d/11, which is positive.
+- If the upgraded player is above the average, its own term gains d - d/11 while the
+  other k' lose d/11 each, so SUM + CF changes by 2d - (1 + k')·d/11, and 1 + k' is at
+  most 11, so that is at least d, which is positive.
+- Crossing the boundary only adds a max(0, ...) term, which is continuous and monotone.
+
+So SUM + CF strictly increases. Step 4 is round and step 5 is floor, both non-decreasing,
+so the squad rating **can never fall when any player is upgraded**. Upgrading the worst
+player is just the special case.
+
+**The brute force.** 20,281,170 exhaustive checks over spread multisets with the worst
+player upgraded by 1 to 15, plus 300,000 random checks upgrading any player by any amount.
+**Zero cases where the rating dropped.** Both properties are now permanent tests in
+`src/rules/squadRating.test.ts`, so if the formula ever changes we find out immediately.
+
+**What is actually true, and it costs real coins.** Against ten 84s, replacing the
+eleventh 84 with an 85, 86, 87, 88 or 89 moves the squad rating **not one point**. It
+stays 84 the whole way and only ticks to 85 at 90. Buy the 89 and you paid a lot for
+nothing. That is the trap worth preserving, it is preserved, and it is tested.
+
+**Decision needed.** Either the sentence in 4.1 goes, or it describes something real that
+the formula does not capture and the formula is wrong. I think it is the first: the
+sentence looks like a half remembered version of the genuine effect above, where a better
+player buys nothing rather than costing you a point. Tell me which and I will update the
+brief text accordingly. Nothing is blocked either way, the engine implements the formula.
+
 ## 5. Disagreements and gaps in the rest of the brief
 
-Numbered so you can answer by number. 5.1, 5.2 and 5.4 are now approved and are marked
-as such below. 5.3, 5.5 and 5.7 are still open and are restated in section 8. 5.6 needed
-no decision.
+Numbered so you can answer by number. **All of these are now decided.** 5.1, 5.2, 5.3,
+5.4, 5.5 and 5.7 are approved, see the decisions log in section 7 and the plan changes in
+section 8. 5.6 needed no decision.
 
 ### 5.1 APPROVED: per player chemistry requirement
 
@@ -483,15 +526,19 @@ Recorded so nothing depends on chat scrollback. All final unless you say otherwi
 
 | # | Decision |
 |---|---|
-| 1 | Dataset route is **FutDB**. One time pull cached to SQLite, fully offline afterwards. Key in `.env`. Prices behind `PriceProvider`, stamped with fetch time, labelled indicative, file backed provider retained as fallback. |
+| 1 | Dataset route is **FutDB**. One time pull cached to SQLite, fully offline afterwards. Key in `.env`. Seed treated as non redistributable. |
 | 2 | Squad rating step 5 is **`floor`**. Concept Squad verification of 95 + 10x84 pending, fixture `gt-001-floor-vs-round` carries expected 85 with `pending_verification: true`. |
 | 3 | **Chemistry contribution table approved.** Must reproduce Icon and Hero rules exactly with tests proving equivalence to the boolean logic. Values from the dataset with a local override file. Club alias table approved and specifically unit tested. |
 | 4 | Chemistry thresholds **confirmed**: club 2/4/7, nation 2/5/8, league 3/5/8. No hedging. |
 | 5.1 | **Per player chemistry requirement** added to the `Requirement` union. |
 | 5.2 | **Closed `Rarity` union removed.** Card type is an open string keyed off FutDB card types, with derived helpers for rare, TOTW, Icon and Hero. |
+| 5.3 | **Approved.** Card usage is an **integer variable bounded by `quantity`** in CP-SAT, never a boolean. A boolean silently caps every stack at one, and duplicate fodder is most of what an SBC eats. |
 | 5.4 | **Queue mode budget** default 60 seconds, configurable, anytime with progress reporting, timeout returns a clearly labelled non optimal result. 5 seconds stays for single solves. |
+| 5.5 | **Approved with one change.** See 8.2. |
+| 5.7 | **Approved.** CI guard fails the build on any EA owned domain in source or built output, covering `ea.com`, `easports.com` and their subdomains. |
 | 6 | Fixture schema records **per player chemistry**, UI cross checks the sum. |
 | 7 | Process: from checkpoint 3 onward, work on `feat/<thing>` branches and merge to `main` when tests pass. **No more direct pushes to `main`.** Stay inside the declared repo scope, ask before attaching and pushing to a repo outside it. |
+| 8 | **Build order of record: checkpoints 3 through 12 first, then 2 and 13** once the FutDB key exists. Forced by the proxy, approved by you, and now the plan. |
 
 ### 7.1 Process correction, acknowledged
 
@@ -502,13 +549,47 @@ have asked instead. **I will not attach and push to a repo outside the declared 
 without asking first.** From checkpoint 3 onward everything lands on `feat/<thing>` and
 merges to `main` only when tests pass.
 
-## 8. Still open
+## 8. Plan changes
 
-Four items. Everything else is decided and building has started.
+### 8.1 Prices: a price by rating table, not per card prices
 
-| Ref | Item | My recommendation |
+FutDB prices are premium only and there is no bulk endpoint even then, so FutDB is out as a
+price source for now. **The file backed `PriceProvider` becomes the primary implementation,
+not the fallback.**
+
+More importantly the shape changes. For SBC solving the cost of a *specific* card is almost
+never the question. Fodder is fungible, so the question is **the cheapest price at each
+rating**. That is roughly 40 numbers, one per rating from about 60 to 99, typed in five
+minutes and refreshed weekly.
+
+- Primary price model is a **price by rating table**, keyed on rating, with an optional
+  second dimension for rare versus common where the gap matters.
+- **Per card overrides** layer on top, for anything genuinely expensive or specific.
+- Section 8's cost model sources from that table.
+- The table carries a **last updated date, surfaced in the UI**, so staleness is visible.
+- The `PriceProvider` interface stays intact, so a premium FutDB implementation can drop in
+  later without touching the cost model.
+
+### 8.2 Club intake status fields, and their provenance
+
+Club tiles do not reliably show rarity and never show `untradeable`, `isLoan`, `locked` or
+`inActiveSquad`, which are exactly the fields Section 7.1 uses to decide what is safe to
+burn. Separate filtered screenshot passes for loans and untradeables, tagged on import,
+is the answer for three of the four.
+
+**`inActiveSquad` is different and does not come from a club filter pass.** It comes from
+screenshotting the **squad screen itself**, which is authoritative and is only 18 cards.
+More reliable and less work.
+
+Defaults are explicit: a card not seen in a status pass is **not a loan, not in an active
+squad, and tradeable**. But **the provenance of each of those four fields is recorded per
+card**, whether it came from a pass or was defaulted, and the club page shows a coverage
+figure. "Untradeable status known for 210 of 612 cards", not a quiet assumption.
+
+## 9. Still open
+
+| Ref | Item | Status |
 |---|---|---|
-| 0.3 | **FutDB terms and rate limits are unreadable from here.** Blocked at the proxy. Free tier request limit unknown, and some endpoints are premium only. | Paste the terms and rate limit page, or confirm the four bullets in 0.3. I will not write request pacing against a limit I invented. Blocks checkpoint 2 only. |
-| 5.3 | `OwnedCard` carries both `id` and `quantity`, and a stack of N is N submittable items. Not a spec change, an interpretation that needs to be on the record. | Model usage as an **integer variable bounded by `quantity`** in CP-SAT, never a boolean. Otherwise every stack silently caps at one. Recorded and implemented this way unless you object. |
-| 5.5 | Club page tiles do not reliably show rarity, and never show `untradeable`, `isLoan`, `locked` or `inActiveSquad`. Section 7.1 depends on exactly those fields to decide what is safe to burn. | Drive intake with **deliberate in game filters**: screenshot the loans view and the untradeables view as separate passes, and tag each batch on import. Cheap if planned at checkpoint 13, painful if discovered there. |
-| 5.7 | A **CI guard** that greps the built output for EA domains and fails the build if any appear, so Section 1.2 cannot regress by accident. | Add it. About ten lines, and it makes the hard line mechanically enforced rather than a promise. |
+| 4.2 | **The counterintuitive behaviour described in brief 4.1 does not exist under the formula in brief 4.1.** Proven algebraically and by 20.6 million brute force checks. | Needs your call: delete the sentence, or tell me the formula is wrong. Nothing is blocked, the engine implements the formula. |
+| 0.3 | FutDB free tier request limit, and which endpoints 403 on a free key. | You are registering a key and reporting back. The loader reads limits from headers or config, so it is written without them. |
+| gt-001 | 95 + 10x84 Concept Squad, settles `floor` versus `round`. | Pending your in game reading. Flagged in every test run. |
