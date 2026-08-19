@@ -161,6 +161,39 @@ describe('threshold counting end to end', () => {
   })
 })
 
+describe('club and league are entangled, which limits what can ever be observed', () => {
+  // Clubmates are ALWAYS league mates. A club group of n is a league group of n
+  // too, so the club ladder can never be read on its own. This is not a rule of
+  // the game, it is a fact about the data, and it decides which ground truth
+  // probes are worth taking. See RESEARCH.md 2.3.
+  function clubGroup(n: number): number {
+    const cards = Array.from({ length: 11 }, (_, i) =>
+      i < n
+        ? resolvedCard({ positions: ['CM'], club: 'Alpha', league: 'League A' })
+        : resolvedCard({ positions: ['CM'] }),
+    )
+    return calculateChemistry(placeAll(cards, cards.map(() => 'CM'))).players[0]!.chemistry
+  }
+
+  it('a club group scores club and league points together, never club alone', () => {
+    expect([2, 3, 4, 5, 6, 7, 8].map(clubGroup)).toEqual([1, 2, 3, 3, 3, 3, 3])
+  })
+
+  it('so the club +3 step at 7 has no observable consequence whatsoever', () => {
+    // By four clubmates a player is already on club +2 plus league +1, which is
+    // the 3 point cap. Everything from four upward reads 3 no matter what the
+    // club ladder does above it. Spending a ground truth reading on the +3 step
+    // would tell us nothing, so no probe tries.
+    for (const n of [4, 5, 6, 7, 8, 9, 10, 11]) expect(clubGroup(n)).toBe(3)
+  })
+
+  it('the steps that DO show up are club +1 at 2, league +1 at 3 and club +2 at 4', () => {
+    expect(clubGroup(2)).toBe(1) // club +1 alone, league needs 3
+    expect(clubGroup(3)).toBe(2) // club +1 plus league +1
+    expect(clubGroup(4)).toBe(3) // club +2 plus league +1
+  })
+})
+
 describe('Icons', () => {
   it('always have 3 chemistry in position regardless of the squad', () => {
     const icon = resolvedCard({ cardType: 'icon', club: null, league: null })
