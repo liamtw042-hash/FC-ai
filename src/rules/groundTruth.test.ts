@@ -156,8 +156,11 @@ describe('the startup warning', () => {
     const inert = unobservableItems(items).map((i) => i.id)
     expect(live).toContain('card_type:fof_captain')
     expect(live).toContain('formations:slot_labels')
-    expect(inert).toEqual(['threshold:club_plus_3_at_7'])
-    expect(live).not.toContain('threshold:club_plus_3_at_7')
+    expect(inert).toEqual(['threshold:club@7'])
+    expect(live).not.toContain('threshold:club@7')
+    // The +3 steps that are NOT masked belong in the live tier.
+    expect(live).toContain('threshold:league@8')
+    expect(live).toContain('threshold:nation@8')
   })
 
   it('only the live tier is told it may produce wrong solutions', () => {
