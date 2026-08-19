@@ -14,6 +14,26 @@
  * The solver optimises a THIRD number, the weighted cost, which is the real cost
  * plus preference bonuses. That one is a preference ordering and is never shown
  * as money.
+ *
+ * AND A FOURTH, WHICH IS THE ONE THE SOLVER ACTUALLY GETS.
+ *
+ * The preference bonuses are negative, so weighted cost can go below zero. Inside
+ * one squad that is harmless, because squad size is fixed at eleven and a constant
+ * shift cannot reorder anything. Across a MULTI SQUAD solve it is a live bug: if a
+ * squad can cost less than nothing, an optimiser choosing between seven squads and
+ * eight sees the eighth as a gain and burns fodder for no reason.
+ *
+ * The fix is a re-parameterisation, not a clamp. A clamp would flatten two squads
+ * that both came out negative and destroy the ordering the bonuses exist to
+ * create. Instead every card carries a constant offset large enough to absorb the
+ * worst possible bonus:
+ *
+ *     solverCost = weightedCost + offset,  offset = -(sum of the negative weights)
+ *
+ * Prices are never negative, so solverCost is never negative. The offset is the
+ * same for every card, so an eleven card squad shifts by exactly 11 * offset and
+ * the within squad ordering is IDENTICAL. Across squads the total grows with the
+ * squad count, so an extra squad can never reduce the objective.
  */
 
 import type { ResolvedCard } from '../types/cards'
@@ -27,8 +47,13 @@ export interface CardCost {
   coinsSpent: number
   /** Market value destroyed by consuming one copy. */
   valueBurned: number
-  /** What the solver minimises. Can be negative, which is the point. */
+  /** Real cost plus preference bonuses. May be negative. For display and reasoning. */
   weightedCost: number
+  /**
+   * What is actually sent to the solver. weightedCost shifted by a constant so it
+   * can never be negative. Same ordering within a squad, safe across many squads.
+   */
+  solverCost: number
   /** How the price was arrived at, so the UI can label an estimate as an estimate. */
   basis: ResolvedPrice['basis']
   asOf: string | null
@@ -38,6 +63,21 @@ export interface CostContext {
   weights: CostWeights
   /** Where this copy comes from. Market top up is off unless the caller says so. */
   source: CardSource
+}
+
+/**
+ * The constant that makes the solver objective non negative.
+ *
+ * Equal to the most negative total the preference weights can contribute to one
+ * card. Only the negative weights count: a positive weight cannot push a cost
+ * below zero, so including it would inflate the offset for nothing.
+ */
+export function solverCostOffset(weights: CostWeights): number {
+  const negatives =
+    Math.min(0, weights.untradeableCost) +
+    Math.min(0, weights.duplicateBonus) +
+    Math.min(0, weights.sbcStorageBonus)
+  return -negatives
 }
 
 /**
@@ -75,10 +115,17 @@ export function costOf(
   if (owned.quantity > 1) weightedCost += weights.duplicateBonus
   if (owned.pool === 'sbc_storage') weightedCost += weights.sbcStorageBonus
 
+  // A negative price would break the non negativity proof, and nothing sane
+  // produces one, so it is treated as an input error rather than absorbed.
+  if (price.coins < 0) {
+    throw new RangeError(`a price cannot be negative, got ${price.coins} for ${card.definition.defId}`)
+  }
+
   return {
     coinsSpent,
     valueBurned,
     weightedCost,
+    solverCost: weightedCost + solverCostOffset(weights),
     basis: price.basis,
     asOf: price.asOf,
   }
@@ -107,6 +154,7 @@ export interface CostSummary {
   coinsSpent: number
   valueBurned: number
   weightedCost: number
+  solverCost: number
   /** How many of the eleven were priced from a real number rather than the default. */
   pricedFromData: number
   unpricedAtDefault: number
@@ -118,6 +166,7 @@ export function summarise(costs: readonly CardCost[]): CostSummary {
   let coinsSpent = 0
   let valueBurned = 0
   let weightedCost = 0
+  let solverCost = 0
   let pricedFromData = 0
   let unpricedAtDefault = 0
   let oldest: string | null = null
@@ -126,10 +175,19 @@ export function summarise(costs: readonly CardCost[]): CostSummary {
     coinsSpent += cost.coinsSpent
     valueBurned += cost.valueBurned
     weightedCost += cost.weightedCost
+    solverCost += cost.solverCost
     if (cost.basis === 'unknown_default') unpricedAtDefault += 1
     else pricedFromData += 1
     if (cost.asOf !== null && (oldest === null || cost.asOf < oldest)) oldest = cost.asOf
   }
 
-  return { coinsSpent, valueBurned, weightedCost, pricedFromData, unpricedAtDefault, oldestPriceAsOf: oldest }
+  return {
+    coinsSpent,
+    valueBurned,
+    weightedCost,
+    solverCost,
+    pricedFromData,
+    unpricedAtDefault,
+    oldestPriceAsOf: oldest,
+  }
 }

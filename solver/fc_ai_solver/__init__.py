@@ -10,6 +10,7 @@ from .schema import (
     SolveRequest,
     SolveResponse,
 )
+from .repeat_solve import NegativeCostError, RepeatSolution, solve_repeat
 from .single_solve import UnsupportedRequirement, solve_single
 
 __all__ = [
@@ -23,7 +24,10 @@ __all__ = [
     "Requirement",
     "SolveRequest",
     "SolveResponse",
+    "NegativeCostError",
+    "RepeatSolution",
     "UnsupportedRequirement",
     "add_chemistry",
+    "solve_repeat",
     "solve_single",
 ]
