@@ -88,18 +88,28 @@ P-005 will clear 4-4-2 on its own.
 
 ## P-005 Chemistry ladder probes
 
-**Status:** open, and **corrected since first written**
+**Status:** open, **corrected since first written**
 **Needs:** the game open. Two Concept Squads, no card ownership required.
+**Order:** **take Squad B first.** Squad A's four player row cannot be read until B is
+in, see the dependency note below.
 
-Both are 4-4-2 with every player in a slot they actually play. Any ratings will do
-for chemistry, but 84s everywhere gives a second rating reading for free.
+Both are 4-4-2 with every player in a slot they actually play. Any ratings will do for
+chemistry, but 84s everywhere gives a second rating reading for free.
 
-### Why the first version of Squad A was wrong
+### Squad B, `gt-003-league-asymmetry`. TAKE THIS ONE FIRST.
 
-It asked for four players from one club and seven from another with **no two players
-sharing a league**. That squad cannot exist. A club sits in exactly one league, so
-four clubmates are four league mates. The expected 29 was club points with the league
-contribution left out, and no reading could have produced it. Corrected below.
+Two players from one league, three from a second, five from a third, one from a fourth,
+**no two players sharing a club or a nation**. All clubs different is what keeps the
+club ladder out of it.
+
+**Report:** squad chemistry total and all eleven individual values.
+**Expected:** the pair on 0, the three on 1 each, the five on 2 each, the last on 0.
+Total **13**.
+
+**What it pins:** league +1 at 3 and league +2 at 5, cleanly, with no club contribution
+anywhere. The pair scoring **0** is the sharpest single number in either squad: it is
+the club versus league asymmetry stated directly, since two players is enough for a club
+or nation point but not for a league point.
 
 ### Squad A, `gt-002-club-league-entanglement`
 
@@ -108,69 +118,73 @@ Eleven players, all in position:
 - **2** from one club, in league A
 - **3** from a second club, in league B
 - **4** from a third club, in league C
-- **2** more, at two further clubs in two further leagues, **sharing a nationality
-  with each other only**
-- every other nationality distinct, and no nationality shared across the groups above
+- **2** more at two further clubs in two further leagues, **sharing a nationality with
+  each other only**
+- every other nationality distinct, and none shared across the groups above
 
 **Report:** squad chemistry total and all eleven individual values.
-**Expected:** the pair on 1, the trio on 2 each, the four on 3 each, the nation pair
-on 1 each. Total **22**.
+**Expected:** the pair on 1, the trio on 2 each, the four on 3 each, the nation pair on
+1 each. Total **22**.
 
-**What each number discriminates:**
-
-| Group | Expected | Confirms |
+| Group | Expected | Pins |
 |---|---|---|
-| club pair | 1 | club +1 fires at 2, AND league +1 does NOT fire at 2. A 0 means club needs 3, a 2 means league fires at 2. |
-| club trio | 2 | league +1 fires at 3, AND club does not step up at 3. A 1 means league needs more than 3, a 3 means club +2 fires at 3. |
-| club four | 3 | club +2 fires at 4. A 2 means club is still on +1 at four. |
+| club pair | 1 | club +1 fires at 2, and league +1 does NOT fire at 2. A 0 means club needs 3, a 2 means league fires at 2. |
+| club trio | 2 | league +1 fires at 3, and club does not step up at 3. A 1 means league needs more than 3, a 3 means club +2 fires at 3. |
+| club four | 3 | club +2 fires at 4, **but only once Squad B is in.** See below. |
 | nation pair | 1 | nation +1 fires at 2. A 0 means nation needs 3. |
 
+**Dependency, and it is why B goes first.** A reading of 3 on the club four row is
+consistent with two different worlds: club +2 with league +1, or club +1 with league +2.
+On its own the row cannot tell them apart. Squad B settles league +2 at 5 independently,
+because all of B's clubs and nations are distinct, and with league +2 pinned at 5 the
+four player row can only be club +2. Take B first and A's four row becomes decisive.
+Take A alone and that row proves nothing.
+
 Group sizes were chosen so **no player reaches the 3 point cap by accident**. A capped
-player reveals nothing, which is exactly what went wrong with the first version.
-
-### Squad B, `gt-003-league-asymmetry`
-
-Unchanged, and already checked by hand. Two players from one league, three from a
-second, five from a third, one from a fourth, **no two players sharing a club or a
-nation**. Clubs must all be different, which is what keeps the club ladder out of it.
-
-**Report:** squad chemistry total and all eleven individual values.
-**Expected:** the pair on 0, the three on 1 each, the five on 2 each, the last on 0.
-Total **13**.
-
-**What it discriminates:** league +1 at 3 and league +2 at 5, cleanly, with no club
-contribution anywhere. The pair scoring **0** is the sharpest single number in either
-squad: it is the club versus league asymmetry stated directly, since two players is
-enough for a club or nation point but not for a league point.
-
-### What these two deliberately do NOT probe
-
-- **Club +3 at 7.** Unobservable. By four clubmates a player is already on club +2 plus
-  league +1, which is the cap, so every group of four or more reads 3 whatever the club
-  ladder does above it. No reading can distinguish a correct +3 step from a wrong one,
-  so none is asked for.
-- **League +3 at 8, nation +2 at 5, nation +3 at 8.** Not covered, for want of slots.
-  They come from the same source sentence as the steps Squad B does confirm ("+2 when 5
-  players are from the same country or league", "+3 when 8 ..."), so confirming the
-  league side is meaningful evidence for the nation side. See P-006 if you want them
-  pinned properly.
+player reveals nothing, which is exactly what was wrong with the first version of this
+squad.
 
 **Unblocks:** `pending_verification` on `gt-002` and `gt-003`, and implicitly the 4-4-2
 slot labels in P-004.
 
 ---
 
-## P-006 The remaining ladder steps, optional
+## P-006 Nation ladder probe
 
-**Status:** open, **low priority, only if you want the last steps pinned**
+**Status:** open
+**Needs:** the game open. One Concept Squad, 4-4-2, everyone in position.
+
+**Do:** nation groups of **2, 5 and 4**, with **all eleven clubs distinct and all eleven
+leagues distinct**.
+**Report:** squad chemistry total and all eleven individual values.
+**Expected:** the pair on 1 each, the five on 2 each, the four on 1 each. Total **16**.
+
+**Why this and not another league probe.** After P-005 Squad B, league has 2, 3 and 5
+pinned and only the +3 step at 8 left open. Nation has **nothing** pinned, and nation +2
+at 5 fires in every nation hybrid, which is most of what a solver actually builds. Nation
+also entangles with nothing, unlike club and league, so the ladder can be read cleanly
+with no dependency on any other reading.
+
+**What it pins, all three in one reading:** nation +1 at 2 (the pair on 1, not 0), nation
++2 at 5 (the five on 2, not 1), and that nation does **not** step up at 4 (the four on 1,
+not 2).
+
+**Unblocks:** `pending_verification` on `gt-004`.
+
+---
+
+## P-007 League +3 at 8, optional
+
+**Status:** open, **lowest priority, only if you want the last step pinned**
 **Needs:** the game open. One Concept Squad.
 
 **Do:** eight players from the same league at eight different clubs, with all eleven
 nationalities distinct, plus three players sharing a fourth league between them.
 **Report:** squad chemistry total and all eleven individual values.
-**Expected:** the eight on 3 each, the three on 1 each, total 27.
+**Expected:** the eight on 3 each, the three on 1 each. Total 27.
 
-**Why it is optional:** it pins league +3 at 8, which P-005 cannot reach for want of
-slots. Everything else in use is either confirmed by P-005 or unobservable. If you
-never take this reading the solver is very probably still correct, and the startup
-warning will keep saying so rather than pretending otherwise.
+**Why it is last.** It pins league +3 at 8, the only live step P-005 and P-006 leave
+open. Nation +3 at 8 comes from the same source sentence, so this reading is evidence
+for both. No fixture has been written for it: writing one now would park a permanently
+pending entry in the startup warning for a reading that may never be taken. Say the word
+and `gt-005` appears.
