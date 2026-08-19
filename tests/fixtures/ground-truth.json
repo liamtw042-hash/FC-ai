@@ -448,6 +448,189 @@
         "chemistry"
       ],
       "source": "PENDING. Constructed from the recorded league ladder, not observed. Designed so a single in game reading confirms the first two league steps and the club versus league asymmetry together."
+    },
+    {
+      "id": "gt-004-nation-ladder",
+      "description": "Nation ladder probe. Groups of 2, 5 and 4 sharing a nationality, with all eleven clubs distinct and all eleven leagues distinct, so nation is the only link in play. Nation entangles with nothing, unlike club and league, so this ladder can be read cleanly. Pins nation +1 at 2, nation +2 at 5, and that nation does not step at 4, in one reading. Expected 2 + 10 + 4 = 16.",
+      "formation": "4-4-2",
+      "players": [
+        {
+          "defId": null,
+          "name": "Probe 0",
+          "rating": 84,
+          "slotPosition": "GK",
+          "positions": [
+            "GK"
+          ],
+          "nation": "Nation Pair",
+          "league": "League 0",
+          "club": "Club 0",
+          "cardType": "rare",
+          "isWomens": false
+        },
+        {
+          "defId": null,
+          "name": "Probe 1",
+          "rating": 84,
+          "slotPosition": "LB",
+          "positions": [
+            "LB"
+          ],
+          "nation": "Nation Pair",
+          "league": "League 1",
+          "club": "Club 1",
+          "cardType": "rare",
+          "isWomens": false
+        },
+        {
+          "defId": null,
+          "name": "Probe 2",
+          "rating": 84,
+          "slotPosition": "CB",
+          "positions": [
+            "CB"
+          ],
+          "nation": "Nation Five",
+          "league": "League 2",
+          "club": "Club 2",
+          "cardType": "rare",
+          "isWomens": false
+        },
+        {
+          "defId": null,
+          "name": "Probe 3",
+          "rating": 84,
+          "slotPosition": "CB",
+          "positions": [
+            "CB"
+          ],
+          "nation": "Nation Five",
+          "league": "League 3",
+          "club": "Club 3",
+          "cardType": "rare",
+          "isWomens": false
+        },
+        {
+          "defId": null,
+          "name": "Probe 4",
+          "rating": 84,
+          "slotPosition": "RB",
+          "positions": [
+            "RB"
+          ],
+          "nation": "Nation Five",
+          "league": "League 4",
+          "club": "Club 4",
+          "cardType": "rare",
+          "isWomens": false
+        },
+        {
+          "defId": null,
+          "name": "Probe 5",
+          "rating": 84,
+          "slotPosition": "LM",
+          "positions": [
+            "LM"
+          ],
+          "nation": "Nation Five",
+          "league": "League 5",
+          "club": "Club 5",
+          "cardType": "rare",
+          "isWomens": false
+        },
+        {
+          "defId": null,
+          "name": "Probe 6",
+          "rating": 84,
+          "slotPosition": "CM",
+          "positions": [
+            "CM"
+          ],
+          "nation": "Nation Five",
+          "league": "League 6",
+          "club": "Club 6",
+          "cardType": "rare",
+          "isWomens": false
+        },
+        {
+          "defId": null,
+          "name": "Probe 7",
+          "rating": 84,
+          "slotPosition": "CM",
+          "positions": [
+            "CM"
+          ],
+          "nation": "Nation Four",
+          "league": "League 7",
+          "club": "Club 7",
+          "cardType": "rare",
+          "isWomens": false
+        },
+        {
+          "defId": null,
+          "name": "Probe 8",
+          "rating": 84,
+          "slotPosition": "RM",
+          "positions": [
+            "RM"
+          ],
+          "nation": "Nation Four",
+          "league": "League 8",
+          "club": "Club 8",
+          "cardType": "rare",
+          "isWomens": false
+        },
+        {
+          "defId": null,
+          "name": "Probe 9",
+          "rating": 84,
+          "slotPosition": "ST",
+          "positions": [
+            "ST"
+          ],
+          "nation": "Nation Four",
+          "league": "League 9",
+          "club": "Club 9",
+          "cardType": "rare",
+          "isWomens": false
+        },
+        {
+          "defId": null,
+          "name": "Probe 10",
+          "rating": 84,
+          "slotPosition": "ST",
+          "positions": [
+            "ST"
+          ],
+          "nation": "Nation Four",
+          "league": "League 10",
+          "club": "Club 10",
+          "cardType": "rare",
+          "isWomens": false
+        }
+      ],
+      "displayedRating": 84,
+      "displayedChemistry": 16,
+      "displayedPlayerChemistry": [
+        1,
+        1,
+        2,
+        2,
+        2,
+        2,
+        2,
+        1,
+        1,
+        1,
+        1
+      ],
+      "pending_verification": true,
+      "pendingRef": "P-006",
+      "verifies": [
+        "squadRating",
+        "chemistry"
+      ],
+      "source": "PENDING. Constructed from the recorded nation ladder, not observed. Nation +2 at 5 fires in every nation hybrid and nothing currently pins it, which is what makes this better value than a further league probe."
     }
   ]
 }

@@ -7,7 +7,12 @@ import {
   runFixture,
   validateFixture,
 } from './groundTruth'
-import { collectUnverified, formatStartupWarning } from './verification'
+import {
+  collectUnverified,
+  formatStartupWarning,
+  liveItems,
+  unobservableItems,
+} from './verification'
 import { defaultCardTypeRegistry } from './cardTypes'
 import { getFormation, listFormations } from './formations'
 import type { GroundTruthFixture } from '../types/squad'
@@ -132,8 +137,9 @@ describe('formations', () => {
 })
 
 describe('the startup warning', () => {
+  const items = collectUnverified(defaultCardTypeRegistry, groundTruth.fixtures)
+
   it('lists every inferred value with the PENDING entry that would clear it', () => {
-    const items = collectUnverified(defaultCardTypeRegistry, groundTruth.fixtures)
     const ids = items.map((i) => i.id)
     expect(ids).toContain('card_type:fof_captain')
     expect(ids).toContain('fixture:gt-001-floor-vs-round')
@@ -143,15 +149,37 @@ describe('the startup warning', () => {
     expect(captain.basis).toContain('INFERRED')
   })
 
-  it('does not quietly imply verified rules when there are none outstanding', () => {
-    expect(formatStartupWarning([])).toContain('All game rules in use are verified')
+  it('separates unverified-and-live from unverified-and-unobservable', () => {
+    // Lumping the two together trains the reader to skim the warning, and then
+    // the live items get skimmed past too.
+    const live = liveItems(items).map((i) => i.id)
+    const inert = unobservableItems(items).map((i) => i.id)
+    expect(live).toContain('card_type:fof_captain')
+    expect(live).toContain('formations:slot_labels')
+    expect(inert).toEqual(['threshold:club_plus_3_at_7'])
+    expect(live).not.toContain('threshold:club_plus_3_at_7')
   })
 
-  it('says out loud that solutions relying on inferred rules may be wrong', () => {
-    const items = collectUnverified(defaultCardTypeRegistry, groundTruth.fixtures)
+  it('only the live tier is told it may produce wrong solutions', () => {
     const text = formatStartupWarning(items)
-    expect(text).toContain('UNVERIFIED GAME RULES IN USE')
+    expect(text).toContain('UNVERIFIED AND LIVE')
     expect(text).toContain('may be wrong in ways the tests cannot catch')
+
+    const inertSection = text.slice(text.indexOf('Unverified but unobservable'))
+    expect(inertSection).toContain('Club +3 at 7')
+    expect(inertSection).not.toContain('may be wrong')
+    expect(inertSection).toContain('no solution can depend on them')
+  })
+
+  it('an inert item never carries a PENDING reference, because no reading can clear it', () => {
+    for (const item of unobservableItems(items)) expect(item.pendingRef).toBeNull()
+  })
+
+  it('does not quietly imply verified rules when nothing live is outstanding', () => {
+    const inertOnly = unobservableItems(items)
+    expect(formatStartupWarning(inertOnly)).toContain(
+      'All game rules that can affect a solution are verified',
+    )
   })
 })
 

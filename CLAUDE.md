@@ -66,6 +66,30 @@ request.
 - Never commit club data or API keys.
 - No em dashes anywhere.
 
+## Permanent architectural invariant
+
+**No game rule is written down twice.**
+
+Every rule that could be wrong about EA FC lives in `src/rules/`, which is the only
+implementation under ground truth verification. The Python solver is a constraint
+compiler that knows no game rules:
+
+- Rating maths never crosses the boundary. TypeScript enumerates the rating multisets
+  and asks the solver to fill an exact one.
+- Chemistry ladders and card contribution weights arrive as **data in the request**,
+  serialised from the engine constants by `src/solver/chemistryConfig.ts`.
+- The solver holds **no defaults and no fallbacks**. A missing config or an unknown
+  card type raises and the API returns 422. A guess would silently mis-score every
+  squad containing that card while the tests stayed green.
+- Every squad the solver returns is re-validated by the TypeScript engine before it
+  reaches the user. If the two disagree the authoritative one wins and the
+  disagreement is surfaced.
+- `scripts/generate-chemistry-crosscheck.ts` and `solver/tests/test_chemistry_model.py`
+  hold the two implementations against each other on 300 random squads, so drift
+  fails a test rather than shipping.
+
+This is not negotiable and does not get relaxed to save a round trip.
+
 ## The one unforgivable thing
 
 Silently guessing on a game rule and letting passing tests make it look verified. Tests

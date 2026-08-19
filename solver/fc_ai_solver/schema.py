@@ -62,10 +62,63 @@ class Requirement(BaseModel):
     def_id: str | None = None
 
 
+class ChemistryContribution(BaseModel):
+    """How many increments one card of this type adds to each threshold count.
+
+    Supplied by the TypeScript rules engine. There is DELIBERATELY no default:
+    an unknown card type is an error, not a guess, because a guess here silently
+    mis-scores every squad containing that card.
+    """
+
+    club: int
+    league: int
+    nation: int
+    # True only for Icons: the league increments apply to every league, not one.
+    applies_league_to_all: bool = False
+    # Icons, Heroes, Festival of Football Captains. Still gated on position.
+    always_max_chem: bool = False
+
+
+class Manager(BaseModel):
+    nation: str
+    league: str
+
+
+class ChemistryConfig(BaseModel):
+    """The chemistry rules, passed in as DATA.
+
+    Nothing in this service knows what the numbers should be. The ladders and the
+    contribution table are the TypeScript engine's, serialised. If a rule changes
+    it changes in one place and arrives here on the next request.
+    """
+
+    # Descending [count, points] pairs. The first entry a count reaches wins.
+    club_thresholds: list[tuple[int, int]]
+    nation_thresholds: list[tuple[int, int]]
+    league_thresholds: list[tuple[int, int]]
+    # card_type to contribution. A pool card whose type is absent is an error.
+    contributions: dict[str, ChemistryContribution]
+    max_player_chemistry: int
+    max_squad_chemistry: int
+    manager: Manager | None = None
+
+
+class Pin(BaseModel):
+    """Hold one card in one slot. Used by re-solve with pins held, and by the
+    cross check that proves this model agrees with the TypeScript engine."""
+
+    card_id: str
+    slot_index: int
+
+
 class SolveRequest(BaseModel):
     pool: list[PoolCard]
     formation_slots: list[str]
+    pins: list[Pin] = Field(default_factory=list)
     requirements: list[Requirement] = Field(default_factory=list)
+    # Required whenever any chemistry requirement is present. No default, and no
+    # fallback: see ChemistryConfig.
+    chemistry: ChemistryConfig | None = None
     # The exact rating multiset to fill, chosen by the TypeScript enumerator.
     # Omitted means any ratings, which is only useful for tests.
     rating_counts: dict[int, int] | None = None
@@ -79,6 +132,9 @@ class PlacedCard(BaseModel):
     slot_index: int
     slot_position: str
     in_position: bool
+    # Reported so the TypeScript engine can re-derive it and compare. A mismatch
+    # means the two implementations have drifted and must be surfaced, not hidden.
+    chemistry: int = 0
 
 
 class SolveResponse(BaseModel):
@@ -89,6 +145,7 @@ class SolveResponse(BaseModel):
     value_burned: int = 0
     # False when the time budget ran out before optimality was proven. The caller
     # MUST label such a result "best found, not proven optimal".
+    squad_chemistry: int = 0
     proven_optimal: bool = False
     wall_time_seconds: float = 0.0
     # Why no squad exists, when the model itself can say.

@@ -3,9 +3,9 @@
 Picks real cards to fill an exact rating multiset, places them into formation
 slots, satisfies the non chemistry requirements, and minimises cost.
 
-Chemistry and the chemistry driven placement arrive at the next checkpoint. Slot
-placement is here already because it is a cheap matching and because
-specificPosition cannot be expressed without it.
+Chemistry is modelled here too, but not one of its numbers lives in this package:
+the ladders and contribution weights arrive as data from the TypeScript rules
+engine. See chemistry_model.py.
 
 Card usage is an INTEGER bounded by quantity, never a boolean. A boolean silently
 caps every stack at one, and duplicate fodder is most of what an SBC eats.
@@ -18,6 +18,7 @@ from collections import defaultdict
 
 from ortools.sat.python import cp_model
 
+from .chemistry_model import MissingChemistryRules, add_chemistry
 from .schema import PlacedCard, PoolCard, Requirement, SolveRequest, SolveResponse
 
 SQUAD_SIZE = 11
@@ -71,6 +72,18 @@ def solve_single(request: SolveRequest) -> SolveResponse:
         model.Add(sum(place[i][s] for s in range(SQUAD_SIZE)) == usage[i])
 
     model.Add(sum(usage) == SQUAD_SIZE)
+
+    by_card_id = {card.id: index for index, card in enumerate(pool)}
+    for pin in request.pins:
+        index = by_card_id.get(pin.card_id)
+        if index is None:
+            return SolveResponse(
+                status="infeasible",
+                reason=f"pinned card {pin.card_id} is not in the available pool",
+            )
+        if not 0 <= pin.slot_index < SQUAD_SIZE:
+            raise ValueError(f"pinned slot {pin.slot_index} is outside the squad")
+        model.Add(place[index][pin.slot_index] == 1)
 
     # The exact rating multiset handed down by the TypeScript enumerator. This is
     # how the non linear rating formula stays out of the model entirely.
@@ -150,6 +163,16 @@ def solve_single(request: SolveRequest) -> SolveResponse:
     def property_count(predicate) -> object:
         return sum(usage[i] for i, card in enumerate(pool) if predicate(card))
 
+    needs_chemistry = any(
+        r.type in ("teamChemistry", "perPlayerChemistry") for r in request.requirements
+    )
+    slot_chemistry = None
+    squad_chemistry = None
+    if needs_chemistry or request.chemistry is not None:
+        slot_chemistry, squad_chemistry = add_chemistry(
+            model, pool, slots, place, request.chemistry
+        )
+
     for requirement in request.requirements:
         kind = requirement.type
         op = requirement.op or "min"
@@ -158,10 +181,26 @@ def solve_single(request: SolveRequest) -> SolveResponse:
         if kind == "squadSize":
             if value != SQUAD_SIZE:
                 raise UnsupportedRequirement(f"squad size {value} is not supported")
-        elif kind in ("teamRating", "teamChemistry", "perPlayerChemistry", "formation"):
-            # teamRating is handled by rating_counts, upstream. Chemistry arrives
-            # at the next checkpoint. Formation is chosen by the caller.
+        elif kind in ("teamRating", "formation"):
+            # teamRating is handled by rating_counts, upstream. Formation is
+            # chosen by the caller before the request is built.
             continue
+        elif kind == "teamChemistry":
+            assert squad_chemistry is not None
+            model.Add(squad_chemistry >= (value or 0))
+        elif kind == "perPlayerChemistry":
+            # Distinct from teamChemistry: a squad can hit the total and still
+            # fail a per player floor. count omitted means all eleven.
+            assert slot_chemistry is not None
+            needed = requirement.count if requirement.count is not None else SQUAD_SIZE
+            bar = value or 0
+            meets = []
+            for s, chem in enumerate(slot_chemistry):
+                flag = model.NewBoolVar(f"chem_floor_{s}")
+                model.Add(chem >= bar).OnlyEnforceIf(flag)
+                model.Add(chem <= bar - 1).OnlyEnforceIf(flag.Not())
+                meets.append(flag)
+            model.Add(sum(meets) >= needed)
         elif kind == "playersFromLeague":
             apply_op(count_of(leagues.get(requirement.league or "", [])), op, value or 0)
         elif kind == "playersFromNation":
@@ -259,6 +298,7 @@ def solve_single(request: SolveRequest) -> SolveResponse:
                         slot_index=s,
                         slot_position=slots[s],
                         in_position=slots[s] in pool[i].positions,
+                        chemistry=solver.Value(slot_chemistry[s]) if slot_chemistry else 0,
                     )
                 )
                 break
@@ -270,6 +310,7 @@ def solve_single(request: SolveRequest) -> SolveResponse:
         total_cost=sum(used_counts[i] * pool[i].cost for i in range(n)),
         coins_spent=sum(used_counts[i] * pool[i].coins_spent for i in range(n)),
         value_burned=sum(used_counts[i] * pool[i].value_burned for i in range(n)),
+        squad_chemistry=solver.Value(squad_chemistry) if squad_chemistry is not None else 0,
         proven_optimal=status == cp_model.OPTIMAL,
         wall_time_seconds=elapsed,
     )
