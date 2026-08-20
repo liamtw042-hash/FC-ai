@@ -401,8 +401,12 @@ def _held_and_prices(pool: list[PoolCard]) -> tuple[dict[int, int], dict[int, in
     cheapest: dict[int, int] = {}
     for card in pool:
         held[card.rating] += card.quantity
-        if card.rating not in cheapest or card.cost < cheapest[card.rating]:
-            cheapest[card.rating] = card.cost
+        # market_price ONLY. See the note in repeat_solve._supply_diagnosis: the
+        # `cost` field is a weighted solver figure, not coins.
+        if card.market_price is None:
+            continue
+        if card.rating not in cheapest or card.market_price < cheapest[card.rating]:
+            cheapest[card.rating] = card.market_price
     return held, cheapest
 
 
@@ -479,7 +483,8 @@ def _diagnose_depths(
         return [], [], achieved
 
     search = _Search(
-        pool, challenge.formation_slots, challenge.chemistry, challenge.multisets, budget, 8
+        pool, challenge.formation_slots, challenge.chemistry, challenge.multisets, budget, 8,
+        rating_prices=rating_prices,
     )
     requirements = list(challenge.requirements)
     # Default: probe every squad that was actually asked for. A fixed cap of four

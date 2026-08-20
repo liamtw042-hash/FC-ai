@@ -518,10 +518,15 @@ def _build_exact(
 class _Search:
     """Runs the exact count models and keeps a note of how much work that took."""
 
-    def __init__(self, pool, slots, chemistry, multisets, budget, workers, *, price_pool=None):
+    def __init__(
+        self, pool, slots, chemistry, multisets, budget, workers, *,
+        price_pool=None, rating_prices=None,
+    ):
         self.pool = pool
         # What the market charges, when `pool` is only what is left of the club.
         self.price_pool = price_pool if price_pool is not None else pool
+        # The price by rating table, when the caller has one. Best source there is.
+        self.rating_prices = rating_prices
         self.slots = slots
         self.chemistry = chemistry
         self.multisets = multisets
@@ -624,10 +629,15 @@ def _supply_diagnosis(
     # market, so prices come from the whole club when the pool being counted is a
     # residual. Otherwise a rating the queue has spent down to zero reads as having
     # no price at all, while the planner quotes it in the same output.
+    # market_price ONLY, never `cost`. `cost` is the weighted figure the solver
+    # minimises: it can be 50 for a card that lists at 4000, and a shortfall that
+    # quoted it would read as a shopping list priced at a fiftieth of the truth.
     cheapest: dict[int, int] = {}
     for card in price_pool if price_pool is not None else pool:
-        if card.rating not in cheapest or card.cost < cheapest[card.rating]:
-            cheapest[card.rating] = card.cost
+        if card.market_price is None:
+            continue
+        if card.rating not in cheapest or card.market_price < cheapest[card.rating]:
+            cheapest[card.rating] = card.market_price
 
     if not multisets:
         # No rating constraint, so the only supply question is whether there are
@@ -729,7 +739,9 @@ def _supply_or_unexplained(
     """Supply first, because a requirement named for a supply problem misleads."""
     avoided: list[int] = []
     shortfalls = _supply_diagnosis(
-        search.pool, search.multisets, target_count, avoided_unpriced=avoided,
+        search.pool, search.multisets, target_count,
+        rating_prices=search.rating_prices,
+        avoided_unpriced=avoided,
         price_pool=search.price_pool,
     )
     if shortfalls:
@@ -1063,6 +1075,7 @@ def solve_repeat(
     requirements: list[Requirement] | None = None,
     chemistry: ChemistryConfig | None = None,
     allowed_rating_multisets: list[dict[int, int]] | None = None,
+    rating_prices: dict[int, int] | None = None,
     time_budget_seconds: float = 60.0,
     diagnosis_budget_seconds: float = 10.0,
     workers: int = 8,
@@ -1085,7 +1098,8 @@ def solve_repeat(
 
     requirements = list(requirements or [])
     search = _Search(
-        pool, formation_slots, chemistry, allowed_rating_multisets, time_budget_seconds, workers
+        pool, formation_slots, chemistry, allowed_rating_multisets, time_budget_seconds, workers,
+        rating_prices=rating_prices,
     )
     achieved, best_solve = search.largest_feasible(requested, requirements)
 

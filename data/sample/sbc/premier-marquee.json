@@ -1,0 +1,11 @@
+{
+  "name": "premier marquee",
+  "formation": "4-3-3",
+  "teamRating": 84,
+  "requirements": [
+    { "type": "playersFromLeague", "league": "Premier Division", "op": "min", "value": 4 },
+    { "type": "rareCount", "op": "min", "value": 8 }
+  ],
+  "repeatable": 1,
+  "notes": "A one off with real requirements, so the per requirement checklist has something to show."
+}

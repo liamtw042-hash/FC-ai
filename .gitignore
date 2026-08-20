@@ -8,6 +8,10 @@ data/prices/*.csv
 !data/club/example.csv
 !data/prices/example.csv
 
+# Your local SBC library, built by `fcai sbc define` and `fcai sbc add`. The
+# worked examples live in data/sample/sbc/ and are committed there.
+data/sbc/*.json
+
 # ---------- Local database ----------
 *.db
 *.db-journal

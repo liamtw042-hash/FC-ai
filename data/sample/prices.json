@@ -1,0 +1,62 @@
+{
+  "note": "SYNTHETIC. Invented prices for the sample club, not observed in any market.",
+  "lastUpdated": "2026-02-20",
+  "entries": [
+    {
+      "rating": 75,
+      "coins": 400
+    },
+    {
+      "rating": 76,
+      "coins": 450
+    },
+    {
+      "rating": 77,
+      "coins": 500
+    },
+    {
+      "rating": 78,
+      "coins": 550
+    },
+    {
+      "rating": 79,
+      "coins": 650
+    },
+    {
+      "rating": 80,
+      "coins": 750
+    },
+    {
+      "rating": 81,
+      "coins": 900
+    },
+    {
+      "rating": 82,
+      "coins": 1100
+    },
+    {
+      "rating": 83,
+      "coins": 1400
+    },
+    {
+      "rating": 84,
+      "coins": 1900
+    },
+    {
+      "rating": 85,
+      "coins": 2700
+    },
+    {
+      "rating": 86,
+      "coins": 4200
+    },
+    {
+      "rating": 87,
+      "coins": 7500
+    },
+    {
+      "rating": 88,
+      "coins": 14000
+    }
+  ]
+}
