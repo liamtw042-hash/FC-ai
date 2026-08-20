@@ -318,6 +318,10 @@ class GrindPlan:
         supply_limited: list[str],
         blocks: list[RequirementBlock],
         supply_ceiling: dict[str, int] | None = None,
+        baseline_failed: bool = False,
+        steps_truncated: bool = False,
+        steps_probed: int = 0,
+        steps_requested: int = 0,
     ) -> None:
         self.baseline = baseline
         self.steps = steps
@@ -327,6 +331,17 @@ class GrindPlan:
         # build them. Each carries its diagnosis.
         self.blocks = blocks
         self.supply_ceiling = supply_ceiling or dict(baseline)
+        # The planner could not solve its OWN baseline model inside its budget, so
+        # it knows nothing. Without this an empty plan rendered as "nothing left to
+        # unlock: the queue is fully fed", which is a flatly false statement
+        # produced by a timeout.
+        self.baseline_failed = baseline_failed
+        # The purchase step search stopped early. It looks `steps_requested` squads
+        # ahead and got `steps_probed`, and silence about the difference reads as
+        # "there is nothing further", which is a claim it never checked.
+        self.steps_truncated = steps_truncated
+        self.steps_probed = steps_probed
+        self.steps_requested = steps_requested
 
     @property
     def baseline_total(self) -> int:
@@ -342,6 +357,14 @@ class GrindPlan:
         return bool(self.blocks) and len(self.blocks) == len(self.baseline)
 
     def summary(self) -> str:
+        if self.baseline_failed:
+            return (
+                "NO PLAN. The planner could not solve its own baseline model inside its "
+                "time budget, so it does not know what the club can feed and has nothing "
+                "to say about buying. This is not the same as there being nothing to buy. "
+                "Raise the planner's time budget."
+            )
+
         lines: list[str] = []
         for block in self.blocks:
             lines.append(block.describe())
@@ -368,12 +391,24 @@ class GrindPlan:
                 )
                 for step in uncostable:
                     lines.append(f"  {step.describe()}")
+            elif self.steps_truncated:
+                lines.append(
+                    f"No purchase found in the {self.steps_probed} step(s) that were "
+                    f"probed, and the search stopped short of the {self.steps_requested} "
+                    f"asked for because it ran out of time. UNKNOWN beyond that, not nothing."
+                )
             else:
                 lines.append("Nothing left to unlock by buying: the queue is fully fed.")
         else:
             lines.append(f"Best value purchase: {best.describe()}")
             for step in uncostable:
                 lines.append(f"Also possible, but not costable: {step.describe()}")
+            if self.steps_truncated:
+                lines.append(
+                    f"Only {self.steps_probed} of {self.steps_requested} step(s) were "
+                    f"probed before the time budget ran out, so a better one further out "
+                    f"is UNKNOWN rather than ruled out."
+                )
         return "\n".join(lines)
 
     @property
@@ -593,7 +628,11 @@ def plan_grind(
     model.Maximize(sum(squads[c.name] * c.priority for c in challenges))
     solver = solve(model, True)
     if solver is None:
-        return GrindPlan(baseline={}, steps=[], supply_limited=[], blocks=[])
+        # Its own baseline model did not solve. Reported as ignorance, not as
+        # "nothing to buy".
+        return GrindPlan(
+            baseline={}, steps=[], supply_limited=[], blocks=[], baseline_failed=True,
+        )
     ceiling = {c.name: solver.Value(squads[c.name]) for c in challenges}
 
     # A challenge the club can feed but the solver cannot build is FLAGGED, and a
@@ -669,6 +708,12 @@ def plan_grind(
 
     total_requested = sum(c.requested for c in challenges)
     steps: list[GrindStep] = []
+    truncated = False
+    # How many steps it MEANT to look, which is the smaller of the step cap and
+    # what the queue actually asked for. Silence about the difference between this
+    # and what it got reads as "there is nothing further".
+    steps_requested = max(0, min(max_extra_steps, total_requested - baseline_total))
+    steps_probed = 0
     for extra in range(1, max_extra_steps + 1):
         target = baseline_total + extra
         if target > total_requested:
@@ -685,7 +730,11 @@ def plan_grind(
         model.Minimize(sum(add[r] * weight[r] for r in ratings))
         step_solver = solve(model, False)
         if step_solver is None:
+            # Out of time, or this target is genuinely unreachable. Either way the
+            # steps beyond here were never looked at, and the plan says so.
+            truncated = target <= total_requested
             break
+
         purchases = [
             Purchase(
                 rating=r,
@@ -706,6 +755,7 @@ def plan_grind(
         avoided = sorted(
             r for r in ratings if basis[r] == "unknown" and r not in bought
         )
+        steps_probed = extra
         steps.append(
             GrindStep(
                 extra_squads=extra,
@@ -727,4 +777,7 @@ def plan_grind(
         supply_limited=supply_limited,
         blocks=blocks,
         supply_ceiling=ceiling,
+        steps_truncated=truncated,
+        steps_probed=steps_probed,
+        steps_requested=steps_requested,
     )

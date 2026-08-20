@@ -412,6 +412,12 @@ class TestNoSingleCauseIsReportedAsIfItWereTheWhole:
             self.blockers = blockers
             self.pool = []
             self.multisets = None
+            self.price_pool = []
+            self.rating_prices = None
+            # Every probe answers. A stub that never times out is what makes the
+            # completeness stamp assert nothing here, which is the point: these
+            # tests are about which requirement is named, not about confidence.
+            self.unknown = 0
 
         def feasible(self, count, requirements, budget=None):
             present = {r.type for r in requirements}

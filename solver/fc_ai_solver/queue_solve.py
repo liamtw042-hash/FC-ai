@@ -104,6 +104,7 @@ class QueueOutcome:
         proven_optimal: bool,
         wall_time_seconds: float,
         plan: GrindPlan | None,
+        failure: str | None = None,
     ) -> None:
         self.items = items
         self.total_cost = total_cost
@@ -113,6 +114,11 @@ class QueueOutcome:
         self.wall_time_seconds = wall_time_seconds
         # The supply picture, from the existing planner. Never a second one.
         self.plan = plan
+        # Set when the whole queue model came back with nothing. "Proved that not
+        # one squad can be built" and "ran out of time before finding one" are
+        # different facts, and an empty outcome that says neither reads as the
+        # first. Nothing else in this file distinguishes them, so this does.
+        self.failure = failure
 
     @property
     def squads_built(self) -> int:
@@ -130,6 +136,8 @@ class QueueOutcome:
         return dict(grouped)
 
     def describe(self) -> str:
+        if self.failure is not None:
+            return self.failure
         lines = [
             f"{self.squads_built} squad(s) built, {self.coins_spent} coins spent, "
             f"{self.value_burned} value burned"
@@ -279,7 +287,17 @@ def solve_queue(
     elapsed = time.perf_counter() - started
 
     if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-        return QueueOutcome([], 0, 0, 0, False, elapsed, None)
+        failure = (
+            "NOTHING BUILT, and the model PROVED it: no squad in this queue can be "
+            "built from this club as it stands."
+            if status == cp_model.INFEASIBLE
+            else (
+                f"NOTHING FOUND in {elapsed:.1f}s, which is NOT the same as nothing "
+                f"being possible. The search ran out of time before finding even one "
+                f"squad. Raise time_budget_seconds, or shorten the queue."
+            )
+        )
+        return QueueOutcome([], 0, 0, 0, False, elapsed, None, failure=failure)
 
     outcomes: list[ItemOutcome] = []
     total_cost = coins = burned = 0

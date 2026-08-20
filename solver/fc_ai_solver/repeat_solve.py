@@ -350,6 +350,7 @@ class ShortfallDiagnosis:
         explanation: str,
         supply: list[SupplyShortfall] | None = None,
         limits: list[ClubLimit] | None = None,
+        probes_timed_out: int = 0,
     ) -> None:
         self.mode = mode
         # The smallest subset whose removal unblocks the next squad. One or two
@@ -365,6 +366,9 @@ class ShortfallDiagnosis:
         # it. "min 5 from Serie A" with three Serie A cards in the club is a
         # different conversation from one with four.
         self.limits = limits or []
+        # How many probes behind this answer ran out of time instead of
+        # answering. Above zero, this is what was FOUND, not what is there.
+        self.probes_timed_out = probes_timed_out
 
     @property
     def subset_size(self) -> int | None:
@@ -373,6 +377,11 @@ class ShortfallDiagnosis:
     @property
     def is_requirement_mode(self) -> bool:
         return self.mode in ("requirement", "requirement_pair", "requirement_set")
+
+    @property
+    def complete(self) -> bool:
+        """False when a probe timed out, so this is a lower bound on the truth."""
+        return self.probes_timed_out == 0
 
 
 class RepeatOutcome:
@@ -534,6 +543,11 @@ class _Search:
         self.workers = workers
         self.solves = 0
         self.elapsed = 0.0
+        # Probes that ran out of time. NOT the same as probes that came back
+        # infeasible, and the difference is the whole point: `feasible` has to
+        # return a bool, so a timeout reads as "no". Every conclusion drawn from
+        # a timed out probe is "we did not finish looking", and downstream says so.
+        self.unknown = 0
 
     def run(self, count: int, requirements: list[Requirement], budget: float | None = None):
         if count <= 0:
@@ -548,6 +562,8 @@ class _Search:
         status = solver.Solve(model)
         self.elapsed += time.perf_counter() - started
         self.solves += 1
+        if status == cp_model.UNKNOWN:
+            self.unknown += 1
         return status, solver, all_usage, all_place
 
     def feasible(self, count: int, requirements: list[Requirement], budget: float | None = None) -> bool:
@@ -950,8 +966,28 @@ def _diagnose(
     requirement also carries what the club can really do against it, because a
     named requirement without a number is half an answer.
     """
+    # Every conclusion below is drawn from probes that can run out of time, and a
+    # probe that runs out of time returns False just like one that proved
+    # infeasibility. So the count is snapshotted here and every answer is stamped
+    # with how many of the probes behind it never finished. "No single requirement
+    # explains it" and "no single requirement explains it, and four probes ran out
+    # of time" are different claims, and only one of them was checked.
+    started_unknown = search.unknown
+
+    def stamp(diagnosis: ShortfallDiagnosis) -> ShortfallDiagnosis:
+        timed_out = search.unknown - started_unknown
+        if timed_out == 0:
+            return diagnosis
+        diagnosis.probes_timed_out = timed_out
+        diagnosis.explanation += (
+            f". NOT A COMPLETE ANSWER: {timed_out} of the probes behind it ran out of "
+            f"time rather than finishing, so this is what was found and not what is "
+            f"there. Raise the diagnosis budget to be sure"
+        )
+        return diagnosis
+
     if not requirements:
-        return _supply_or_unexplained(search, target_count, [], probe_budget, True)
+        return stamp(_supply_or_unexplained(search, target_count, [], probe_budget, True))
 
     def limits_for(named: list[Requirement]) -> list[ClubLimit]:
         # Each limit is a doubling then a bisection, so a handful of solves per
@@ -985,13 +1021,13 @@ def _diagnose(
         )
         limits = limits_for(singles)
         detail = ". ".join(limit.describe() for limit in limits)
-        return ShortfallDiagnosis(
+        return stamp(ShortfallDiagnosis(
             mode="requirement",
             blocking=names,
             contributions=[],
             explanation=f"{explanation}. {detail}" if detail else explanation,
             limits=limits,
-        )
+        ))
 
     # Pairs. Bounded, because the number of pairs grows quadratically and a real
     # SBC with twenty requirements would spend the whole budget here.
@@ -1005,7 +1041,7 @@ def _diagnose(
                 names = [_describe(pair[0]), _describe(pair[1])]
                 limits = limits_for(pair)
                 detail = ". ".join(limit.describe() for limit in limits)
-                return ShortfallDiagnosis(
+                return stamp(ShortfallDiagnosis(
                     mode="requirement_pair",
                     blocking=names,
                     contributions=[],
@@ -1014,7 +1050,7 @@ def _diagnose(
                         f"which is why removing one at a time finds nothing. {detail}"
                     ),
                     limits=limits,
-                )
+                ))
 
     # Three or more together. The deletion filter generalises the ladder above
     # rather than sitting beside it: it returns a MINIMAL infeasible subset, so a
@@ -1050,20 +1086,22 @@ def _diagnose(
                 f"a time found nothing. Dropping any single one settles THIS conflict, "
                 f"though the challenge may still fail on another"
             )
-        return ShortfallDiagnosis(
+        return stamp(ShortfallDiagnosis(
             mode=mode,
             blocking=names,
             contributions=[],
             explanation=f"{head}. {detail}" if detail else head,
             limits=limits,
-        )
+        ))
 
     # The filter came back None, which means the problem is still infeasible with
     # every requirement removed. The requirements are RULED OUT, not merely
     # unproven, and saying so is stronger than listing what is closest to binding.
-    return _supply_or_unexplained(
-        search, target_count, requirements, probe_budget, pairs_searched,
-        requirements_ruled_out=True,
+    return stamp(
+        _supply_or_unexplained(
+            search, target_count, requirements, probe_budget, pairs_searched,
+            requirements_ruled_out=True,
+        )
     )
 
 
