@@ -1,0 +1,6 @@
+#!/bin/sh
+# Refuses a push whose main history contains a commit that did not come through a
+# feat/ branch. Installed with: npm run hooks:install
+set -e
+echo "Checking branch policy before push..."
+npx tsx scripts/checkBranchPolicy.ts main

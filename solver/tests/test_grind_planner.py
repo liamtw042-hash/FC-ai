@@ -489,3 +489,68 @@ class TestBlockingIsPerSquadNotPerChallenge:
         # not what a cap means.
         assert "Squads 5 to 8 were not probed" in described
         assert "UNKNOWN rather than nothing" in described
+
+
+class TestAStepThatCannotBeCostedIsNotCosted:
+    """An estimate rendered as a plain number is the same failure the purchase
+    suppression exists to prevent. A wrong number gets acted on."""
+
+    @staticmethod
+    def pool_missing_a_rating() -> list[PoolCard]:
+        # No cards rated 86 at all, so 86 has no price from anywhere.
+        return placeable(85, 30, 2600, "m") + placeable(83, 60, 1200, "l")
+
+    def test_the_coin_figure_is_withheld_and_the_rating_is_named(self):
+        plan = plan_grind(
+            self.pool_missing_a_rating(),
+            [PlannerChallenge("85 squad", 3, [{86: 4, 85: 1, 83: 6}])],
+        )
+        assert plan.steps, "there is still something to buy, it just cannot be priced"
+        step = plan.steps[0]
+        assert not step.is_costable
+        assert step.coin_cost is None
+        assert step.coins_per_squad is None
+        described = step.describe()
+        assert "COST NOT QUOTED" in described
+        assert "rating(s) 86 have no price" in described
+        assert "at an unknown price" in described
+
+    def test_an_uncostable_step_is_never_ranked_as_best_value(self):
+        # Ranking it would mean inventing the value it is ranked on.
+        plan = plan_grind(
+            self.pool_missing_a_rating(),
+            [PlannerChallenge("85 squad", 3, [{86: 4, 85: 1, 83: 6}])],
+        )
+        assert plan.biggest_unlock is None
+        summary = plan.summary()
+        assert "No purchase can be ranked by value" in summary
+        assert "which have no price" in summary
+        assert "Add them to the price table" in summary
+
+    def test_supplying_a_price_table_turns_it_back_into_a_shopping_list(self):
+        plan = plan_grind(
+            self.pool_missing_a_rating(),
+            [PlannerChallenge("85 squad", 3, [{86: 4, 85: 1, 83: 6}])],
+            rating_prices={86: 9000},
+        )
+        step = plan.steps[0]
+        assert step.is_costable
+        assert step.coin_cost is not None
+        assert plan.biggest_unlock is not None
+        assert "coins per squad" in plan.summary()
+
+    def test_a_priced_step_still_quotes_normally(self):
+        plan = plan_grind(deep_pool(), [PlannerChallenge("85 squad", 4, M85)])
+        assert plan.steps[0].is_costable
+        assert "COST NOT QUOTED" not in plan.steps[0].describe()
+
+    def test_a_table_price_beats_the_club_price(self):
+        plan = plan_grind(
+            deep_pool(),
+            [PlannerChallenge("85 squad", 4, M85)],
+            rating_prices={86: 50_000},
+        )
+        eighty_six = [p for step in plan.steps for p in step.purchases if p.rating == 86]
+        for purchase in eighty_six:
+            assert purchase.basis == "table"
+            assert purchase.unit_cost == 50_000

@@ -210,15 +210,37 @@ class SupplyShortfall:
 
     rating is None when the challenge has no rating requirement, so the shortfall
     is in cards generally. It used to be 0, which rendered as "cards rated 0".
+
+    WHY THERE IS NO ESTIMATED PRICE.
+
+    A rating the club holds none of used to be priced at the dearest card in the
+    club. That is an estimate rendered as a plain number, and it can be out by a
+    large factor: a club topping out at 84 asked for 90s would quote an 84's price
+    for a card worth many times that. A wrong number gets acted on. A missing one
+    gets asked about. So an unpriced rating carries unit_cost None and basis
+    "unknown", and everything downstream refuses to quote a coin figure for a step
+    containing one, the same way a flagged challenge has its purchase suppressed.
     """
 
     def __init__(
-        self, rating: int | None, needed: int, held: int, unit_cost: int | None
+        self,
+        rating: int | None,
+        needed: int,
+        held: int,
+        unit_cost: int | None,
+        basis: str = "unknown",
     ) -> None:
         self.rating = rating
         self.needed = needed
         self.held = held
         self.unit_cost = unit_cost
+        # "table" from the supplied price table, "pool" from the cheapest card of
+        # that rating in the club, "unknown" when neither exists.
+        self.basis = basis
+
+    @property
+    def is_priced(self) -> bool:
+        return self.unit_cost is not None
 
     @property
     def missing(self) -> int:
@@ -501,6 +523,7 @@ def _supply_diagnosis(
     pool: list[PoolCard],
     multisets: list[dict[int, int]] | None,
     count: int,
+    rating_prices: dict[int, int] | None = None,
 ) -> list[SupplyShortfall]:
     """Which ratings the club runs out of at this count, and by how many.
 
@@ -530,10 +553,27 @@ def _supply_diagnosis(
         return [SupplyShortfall(rating=None, needed=needed, held=total, unit_cost=None)]
 
     ratings = sorted({r for combo in multisets for r in combo})
-    # A rating the club has none of still has a price, or the report cannot say
-    # what closing the gap costs. The dearest known card is the conservative stand in.
-    fallback = max(cheapest.values()) if cheapest else 1
-    unit = {r: cheapest.get(r, fallback) for r in ratings}
+    # Price resolution, best source first, and NO fallback estimate. A rating with
+    # neither a table price nor a card in the club is genuinely unpriced and says so.
+    supplied = rating_prices or {}
+    unit: dict[int, int | None] = {}
+    basis: dict[int, str] = {}
+    for r in ratings:
+        if r in supplied:
+            unit[r], basis[r] = supplied[r], "table"
+        elif r in cheapest:
+            unit[r], basis[r] = cheapest[r], "pool"
+        else:
+            unit[r], basis[r] = None, "unknown"
+
+    # Weight for the optimisation only. An unpriced rating is weighted above every
+    # priced one, so the model avoids buying what it cannot cost WHEN there is a
+    # priced alternative. That is a deliberate bias toward the option that can be
+    # reported honestly, and it is why the chosen mix may not be the true cheapest
+    # when an unpriced rating is involved. Said out loud downstream.
+    priced = [value for value in unit.values() if value is not None]
+    sentinel = (max(priced) * 100 + 1) if priced else 1
+    weight = {r: (unit[r] if unit[r] is not None else sentinel) for r in ratings}
 
     model = cp_model.CpModel()
     take = [model.NewIntVar(0, count, f"take_{k}") for k in range(len(multisets))]
@@ -546,7 +586,7 @@ def _supply_diagnosis(
         model.Add(usage == total_used)
         used[r] = usage
         model.Add(usage <= held.get(r, 0) + add[r])
-    model.Minimize(sum(add[r] * unit[r] for r in ratings))
+    model.Minimize(sum(add[r] * weight[r] for r in ratings))
 
     solver = cp_model.CpSolver()
     solver.parameters.max_time_in_seconds = 5.0
@@ -567,12 +607,20 @@ def _supply_diagnosis(
             needed=solver.Value(used[r]),
             held=held.get(r, 0),
             unit_cost=unit[r],
+            basis=basis[r],
         )
         for r in ratings
         if solver.Value(add[r]) > 0
     ]
-    # Cheapest gap to close first, because that is the one to act on.
-    shortfalls.sort(key=lambda s: (s.cost_to_close if s.cost_to_close is not None else 0, s.missing))
+    # Priced gaps first, cheapest among them, with the unpriced ones last so they
+    # never head a list that reads as a recommendation.
+    shortfalls.sort(
+        key=lambda s: (
+            0 if s.is_priced else 1,
+            s.cost_to_close if s.cost_to_close is not None else 0,
+            s.missing,
+        )
+    )
     return shortfalls
 
 
@@ -588,7 +636,15 @@ def _supply_or_unexplained(
     if shortfalls:
         lines = "; ".join(s.describe(target_count) for s in shortfalls)
         tail = ""
-        if len(shortfalls) > 1:
+        unpriced = [s for s in shortfalls if not s.is_priced]
+        if unpriced:
+            which = ", ".join(str(s.rating) for s in unpriced)
+            tail = (
+                f". These are all needed together, not instead of each other. The total "
+                f"cost is NOT quoted because rating(s) {which} have no price: supply one "
+                f"before treating this as a shopping list"
+            )
+        elif len(shortfalls) > 1:
             # These are not alternatives. The model returns the cheapest SET of
             # additions that together reach the count, so every one of them is
             # required. "Cheapest gap" used to head this list and read as a menu.

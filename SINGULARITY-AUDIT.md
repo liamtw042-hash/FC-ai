@@ -52,12 +52,27 @@ general", which rendered as "22 cards rated 0". `rating` is now `int | None` and
 wording is "22 cards" when there is no rating requirement.
 
 ### 5. `_supply_diagnosis`, price for a rating the club holds none of
-**Incomplete, not worth fixing beyond what is there.** The unit price falls back to
-the dearest card the club holds, so `cost_to_close` for a rating with zero stock is
-an estimate presented as a number. The alternative is no number at all, which is
-worse for a shopping list. The fallback is documented at the site. **Recorded, not
-changed.** If prices ever come from the rating table rather than the pool, this
-disappears.
+**Was: incomplete. Verdict reversed on review, and FIXED.**
+
+The first pass called this "not worth fixing" on the grounds that no number is
+worse than an estimate for a shopping list. That was arguable rather than obvious,
+and the argument runs the other way: a wrong number gets acted on, a missing one
+gets asked about. The old fallback priced a missing rating at the dearest card in
+the club, which can be out by a large factor. A club topping out at 84 asked for
+90s would quote an 84's price for a card worth many times that.
+
+There is now no fallback estimate. Price resolution is: a supplied rating table
+first, then the cheapest card of that rating in the club, then genuinely unpriced,
+carrying `unit_cost = None` and `basis = "unknown"`. Everything downstream refuses
+to quote a coin figure for a step containing one, names the rating that needs a
+price, and excludes the step from the best-value ranking, because ranking it would
+mean inventing the value it is ranked on. That is the same treatment a flagged
+challenge gets, for the same reason.
+
+One deliberate bias, stated rather than hidden: in the optimisation an unpriced
+rating carries a weight above every priced one, so the model avoids buying what it
+cannot cost when a priced alternative exists. The chosen mix may therefore not be
+the true cheapest when an unpriced rating is involved.
 
 ### 6. `_supply_diagnosis`, solver failure
 **Was: incomplete and silent. FIXED.** Returned `[]` on a non-optimal status, which
