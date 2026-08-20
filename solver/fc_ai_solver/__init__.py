@@ -10,7 +10,14 @@ from .schema import (
     SolveRequest,
     SolveResponse,
 )
-from .grind_planner import GrindPlan, GrindStep, PlannerChallenge, Purchase, plan_grind
+from .grind_planner import (
+    GrindPlan,
+    GrindStep,
+    PlannerChallenge,
+    Purchase,
+    RequirementBlock,
+    plan_grind,
+)
 from .repeat_solve import (
     lexicographic_objective,
     lexicographic_scale,
@@ -49,6 +56,7 @@ __all__ = [
     "GrindStep",
     "PlannerChallenge",
     "Purchase",
+    "RequirementBlock",
     "plan_grind",
     "MixedSquadSizeError",
     "NegativeCostError",

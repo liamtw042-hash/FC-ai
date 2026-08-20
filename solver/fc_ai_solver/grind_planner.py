@@ -19,9 +19,22 @@ WHAT IT DOES NOT KNOW, and this matters when reading the output.
 It is a SUPPLY model. It counts cards by rating and nothing else. It does not know
 about chemistry, positions, leagues, nations or any other requirement, so the
 counts it produces are CEILINGS: what the club could feed if nothing but card
-ratings mattered. Pass `known_achievable` from the real solver and it will say
-which challenges are held back by something other than supply, where buying cards
-will not help.
+ratings mattered.
+
+Pass `known_achievable` from the real solver and a challenge whose ceiling exceeds
+what can actually be built is flagged. When that happens:
+
+  1. The requirement diagnosis is RUN for that challenge and attached, so the
+     output says "squad 4 is blocked by totwCount min 1" rather than a bare
+     warning. A warning without a reason is exactly where someone buys anyway.
+  2. Its purchase recommendation is SUPPRESSED, not caveated. A quoted coin
+     figure next to a warning gets read as a coin figure. The challenge is pinned
+     to what it can really build, so no purchase is ever quoted against it.
+  3. If nothing in the queue is unflagged, there is no shopping list at all. The
+     plan says the queue is requirement blocked and hands over the diagnoses.
+
+If the diagnosis comes back unexplained, the plan says so rather than leaving room
+to read it as "the purchase might work anyway".
 """
 
 from __future__ import annotations
@@ -30,7 +43,8 @@ from collections import defaultdict
 
 from ortools.sat.python import cp_model
 
-from .schema import PoolCard
+from .repeat_solve import ShortfallDiagnosis, _diagnose, _Search
+from .schema import ChemistryConfig, PoolCard, Requirement
 from .squad_size import SQUAD_SIZE
 
 
@@ -43,6 +57,9 @@ class PlannerChallenge:
         requested: int,
         multisets: list[dict[int, int]] | None = None,
         priority: int = 1,
+        formation_slots: list[str] | None = None,
+        requirements: list[Requirement] | None = None,
+        chemistry: ChemistryConfig | None = None,
     ) -> None:
         if requested < 1:
             raise ValueError(f"{name}: requested must be at least 1")
@@ -54,6 +71,15 @@ class PlannerChallenge:
         # eleven cards of any rating.
         self.multisets = multisets
         self.priority = priority
+        # Only needed to explain a flag. Without them the plan can say a challenge
+        # is held back by something other than supply, but not what.
+        self.formation_slots = formation_slots
+        self.requirements = requirements or []
+        self.chemistry = chemistry
+
+    @property
+    def can_be_diagnosed(self) -> bool:
+        return self.formation_slots is not None
 
 
 class Purchase:
@@ -100,26 +126,96 @@ class GrindStep:
         )
 
 
+class RequirementBlock:
+    """A challenge the club can feed but the solver cannot build.
+
+    Carries the reason, because a warning without one is exactly where someone
+    buys anyway with a confident coin figure sitting next to it.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        achieved: int,
+        supply_ceiling: int,
+        diagnosis: ShortfallDiagnosis | None,
+    ) -> None:
+        self.name = name
+        self.achieved = achieved
+        self.supply_ceiling = supply_ceiling
+        self.diagnosis = diagnosis
+
+    def describe(self) -> str:
+        head = (
+            f"{self.name}: buying cards would not help. The club can feed "
+            f"{self.supply_ceiling} squads but only {self.achieved} can be built"
+        )
+        if self.diagnosis is None:
+            return (
+                f"{head}, and no formation or requirements were supplied for this "
+                f"challenge, so the plan cannot say what is blocking it"
+            )
+        if self.diagnosis.mode == "unexplained":
+            return (
+                f"{head}. Squad {self.achieved + 1} is blocked by something the "
+                f"diagnosis could not name: {self.diagnosis.explanation}. Buying cards "
+                f"is not the answer, and neither is loosening any single requirement"
+            )
+        return (
+            f"{head}. Squad {self.achieved + 1} is blocked by {self.diagnosis.explanation}"
+        )
+
+
 class GrindPlan:
     def __init__(
         self,
         baseline: dict[str, int],
         steps: list[GrindStep],
         supply_limited: list[str],
-        requirement_limited: list[str],
+        blocks: list[RequirementBlock],
+        supply_ceiling: dict[str, int] | None = None,
     ) -> None:
         self.baseline = baseline
         self.steps = steps
         # Challenges whose ceiling is below what was asked, so cards would help.
         self.supply_limited = supply_limited
         # Challenges where the club holds the cards but the solver still cannot
-        # build them, so something other than supply is binding and buying will
-        # not help.
-        self.requirement_limited = requirement_limited
+        # build them. Each carries its diagnosis.
+        self.blocks = blocks
+        self.supply_ceiling = supply_ceiling or dict(baseline)
 
     @property
     def baseline_total(self) -> int:
         return sum(self.baseline.values())
+
+    @property
+    def requirement_limited(self) -> list[str]:
+        return [block.name for block in self.blocks]
+
+    @property
+    def queue_is_requirement_blocked(self) -> bool:
+        """Every challenge in the queue is held back by something buying cannot fix."""
+        return bool(self.blocks) and len(self.blocks) == len(self.baseline)
+
+    def summary(self) -> str:
+        lines: list[str] = []
+        for block in self.blocks:
+            lines.append(block.describe())
+
+        if self.queue_is_requirement_blocked:
+            lines.insert(
+                0,
+                "This queue is requirement blocked, not supply blocked. No purchase "
+                "would unlock anything, so there is no shopping list.",
+            )
+            return "\n".join(lines)
+
+        best = self.biggest_unlock
+        if best is None:
+            lines.append("Nothing left to unlock by buying: the queue is fully fed.")
+        else:
+            lines.append(f"Best value purchase: {best.describe()}")
+        return "\n".join(lines)
 
     @property
     def biggest_unlock(self) -> GrindStep | None:
@@ -199,6 +295,26 @@ def _model(
     return model, squads, add, unit
 
 
+def _diagnose_block(
+    pool: list[PoolCard],
+    challenge: PlannerChallenge,
+    achieved: int,
+    budget: float,
+) -> ShortfallDiagnosis | None:
+    """Why the solver cannot build the squad after the one it managed."""
+    if not challenge.can_be_diagnosed:
+        return None
+    search = _Search(
+        pool,
+        challenge.formation_slots,
+        challenge.chemistry,
+        challenge.multisets,
+        budget,
+        8,
+    )
+    return _diagnose(search, achieved + 1, list(challenge.requirements), budget)
+
+
 def plan_grind(
     pool: list[PoolCard],
     challenges: list[PlannerChallenge],
@@ -209,7 +325,7 @@ def plan_grind(
 ) -> GrindPlan:
     """What the club can feed now, and the cheapest way to feed more."""
     if not challenges:
-        return GrindPlan(baseline={}, steps=[], supply_limited=[], requirement_limited=[])
+        return GrindPlan(baseline={}, steps=[], supply_limited=[], blocks=[])
 
     held, cheapest = _held_and_prices(pool)
     ratings = sorted(
@@ -233,9 +349,44 @@ def plan_grind(
     model.Maximize(sum(squads[c.name] * c.priority for c in challenges))
     solver = solve(model, True)
     if solver is None:
-        return GrindPlan(baseline={}, steps=[], supply_limited=[], requirement_limited=[])
-    baseline = {c.name: solver.Value(squads[c.name]) for c in challenges}
+        return GrindPlan(baseline={}, steps=[], supply_limited=[], blocks=[])
+    ceiling = {c.name: solver.Value(squads[c.name]) for c in challenges}
+
+    # A challenge the club can feed but the solver cannot build is FLAGGED, and a
+    # flagged challenge is pinned to what it can really build so that no purchase
+    # is ever quoted against it. Caveating the number instead would leave a coin
+    # figure on the page, and a coin figure next to a warning reads as a coin figure.
+    blocks: list[RequirementBlock] = []
+    pinned: dict[str, int] = {}
+    if known_achievable is not None:
+        for challenge in challenges:
+            achieved = known_achievable.get(challenge.name)
+            if achieved is None or achieved >= ceiling[challenge.name]:
+                continue
+            pinned[challenge.name] = achieved
+            blocks.append(
+                RequirementBlock(
+                    name=challenge.name,
+                    achieved=achieved,
+                    supply_ceiling=ceiling[challenge.name],
+                    diagnosis=_diagnose_block(pool, challenge, achieved, time_budget_seconds),
+                )
+            )
+
+    baseline = {
+        c.name: pinned.get(c.name, ceiling[c.name]) for c in challenges
+    }
     baseline_total = sum(baseline.values())
+
+    if len(blocks) == len(challenges) and blocks:
+        # Nothing in the queue is unflagged, so there is no shopping list to give.
+        return GrindPlan(
+            baseline=baseline,
+            steps=[],
+            supply_limited=[],
+            blocks=blocks,
+            supply_ceiling=ceiling,
+        )
 
     total_requested = sum(c.requested for c in challenges)
     steps: list[GrindStep] = []
@@ -246,6 +397,11 @@ def plan_grind(
         model, squads, add, _ = _model(
             pool, challenges, ratings, unit, held, allow_purchases=True
         )
+        # Flagged challenges cannot grow whatever is bought, so they are held at
+        # what they can really build and every purchase quoted below is for a
+        # challenge the cards would actually unlock.
+        for name, achieved in pinned.items():
+            model.Add(squads[name] == achieved)
         model.Add(sum(squads[c.name] for c in challenges) >= target)
         model.Minimize(sum(add[r] * unit[r] for r in ratings))
         step_solver = solve(model, False)
@@ -262,21 +418,16 @@ def plan_grind(
         }
         steps.append(GrindStep(extra_squads=extra, purchases=purchases, unlocks=unlocks))
 
-    supply_limited = [c.name for c in challenges if baseline[c.name] < c.requested]
-    requirement_limited: list[str] = []
-    if known_achievable is not None:
-        # The supply ceiling says the cards are there. If the real solver still
-        # cannot build them, buying more cards will not help and the planner must
-        # say so rather than recommending a purchase that changes nothing.
-        requirement_limited = [
-            name
-            for name, achieved in known_achievable.items()
-            if name in baseline and achieved < baseline[name]
-        ]
+    supply_limited = [
+        c.name
+        for c in challenges
+        if c.name not in pinned and baseline[c.name] < c.requested
+    ]
 
     return GrindPlan(
         baseline=baseline,
         steps=steps,
         supply_limited=supply_limited,
-        requirement_limited=requirement_limited,
+        blocks=blocks,
+        supply_ceiling=ceiling,
     )
