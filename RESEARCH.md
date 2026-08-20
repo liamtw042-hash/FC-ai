@@ -874,6 +874,47 @@ error. The client is a `node:http` request with no socket timeout by default and
 explicit `--timeout` flag. This is a local socket to a process on 127.0.0.1, and the right
 default is to wait.
 
+### 8.10 Checkpoint 14: the UI, and what it deliberately does not have
+
+Next.js 15 App Router, Tailwind, dark, function over form, as the brief asked. Seven pages:
+club, intake, SBC library, queue and solve, results (inside solve, because a result with no
+squad in front of it is a page nobody visits), grind planner, history with the fodder
+ledger, and fixture entry.
+
+**One implementation, two front ends.** `app/lib/server.ts` is the only place the pages
+reach the club, the solver or the rules engine, and it reaches them through the same
+`buildPool`, `loadState` and `SolverClient` the command line uses. The two read the same
+`data/club/state.json`, so an import made in one is visible in the other. Nothing in `app/`
+re-implements a rule, a cost or a requirement.
+
+**Every returned squad is re-validated in the browser's server component, not trusted.**
+`app/lib/solve.ts` rebuilds each squad as a `Squad` and runs `calculateSquadRating`,
+`calculateChemistry` and `validateSquad` over it. Where the Python service and the rules
+engine disagree, the squad card prints MISMATCH in a red box rather than preferring either.
+
+**The unverified banner is on every page.** Not an about box, not a footnote. Eleven rule
+values are inferred rather than observed and any of them could change a returned squad.
+
+**The screenshot drop zone is a labelled empty state.** OCR needs a real player database to
+match names against and that loader is blocked. A drop zone that half worked would be worse
+than one that says it does not, so it says it does not, and says why.
+
+**Mark as submitted is the one place a report writes back.** After a submission the cards
+really are gone, and a club that still lists them will solve with cards that do not exist.
+It REFUSES rather than clamping: if the club holds fewer copies than the squad used, the
+club and this tool have already diverged and quietly taking what is there would hide it.
+
+**The paste parser never silently drops a line.** `parseRequirementText` returns every line
+of the pasted text, parsed or not, with its line number and the reason it was not
+understood, and the page shows all of them before anything is saved. A parser that ignores
+what it does not understand produces a squad that satisfies four of five requirements and
+looks like a success. It also never guesses a number from a word: "Rare: a few" is an
+unrecognised line, not a 3.
+
+**Fixture entry calls the same `validateFixture`.** A fixture that the engine disagrees with
+is still saved, and the disagreement is reported as a FINDING rather than an error, because
+the fixture is what the game displayed and the engine is the thing under test.
+
 ## 9. Still open
 
 | Ref | Item | Status |

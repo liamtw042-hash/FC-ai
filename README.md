@@ -40,7 +40,11 @@ and the impossibility diagnosis. The command line drives all of it.
 - **Checkpoint 13, screenshot OCR.** Needs checkpoint 2's database to match names
   against. There is no placeholder OCR path and no synthesised database.
 
-**Checkpoint 14, the UI, is next.**
+Checkpoint 14, the UI, is built: club, intake, SBC library with the paste parser,
+queue and solve, results, grind planner, history with the fodder ledger, and
+fixture entry. Its intake page has a CSV importer and an autocomplete quick add;
+the screenshot drop zone is a labelled empty state rather than a placeholder,
+because OCR is blocked on the same database checkpoint 2 needs.
 
 See `RESEARCH.md` for the findings and decisions, and `PENDING.md` for the in game
 readings that would clear the rule values this build has not verified.
@@ -53,6 +57,8 @@ src/rules/      the rules engine, pure TS, zero dependencies, Vitest
 src/solver/     cost model, chemistry wire format, rating modes, queue guards
 src/data/       CSV loaders: card definitions and club intake with provenance
 src/cli/        what the command line is made of, so it can be tested
+app/            the Next.js UI, App Router, dark, function over form
+app/api/        route handlers: import, lock, parse, solve, queue, history, fixtures
 solver/         Python CP-SAT service, FastAPI, localhost only
 scripts/fcai.ts the command line
 scripts/        fixture entry, sample data generator, branch and tree guards
@@ -83,7 +89,9 @@ npm test              rules engine, Vitest
 npm run typecheck     strict TypeScript
 npm run solver:test   CP-SAT model, pytest
 npm run test:all      both
-npm run solver:dev    start the local solver service on 127.0.0.1:8000
+npm run dev           start the solver and the web app together
+npm run solver:dev    start just the local solver service on 127.0.0.1:8000
+npm run build         production build of the web app
 npm run quickstart    run QUICKSTART.md end to end and check the answer
 
 npm run fixture:template 4-4-2 > squad.json    ground truth entry
@@ -93,15 +101,22 @@ npm run fixture:check                          run every fixture
 
 ### Running it
 
-Two processes. The solver first, in its own terminal:
+One command starts both processes:
 
 ```bash
 npm install
 npm run solver:install
+npm run dev                   # solver on :8000, web on :3000, output labelled
+```
+
+Then open http://127.0.0.1:3000. Or run just the solver, if you only want the
+command line:
+
+```bash
 npm run solver:dev            # 127.0.0.1:8000, leave it running
 ```
 
-Then the command line, in another:
+The command line, in another terminal:
 
 ```bash
 npx tsx scripts/fcai.ts help

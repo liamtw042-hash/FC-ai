@@ -22,12 +22,27 @@
     "git:reset": "tsx scripts/safeHistory.ts reset",
     "fcai": "tsx scripts/fcai.ts",
     "sample:generate": "tsx scripts/generateSampleData.ts",
-    "quickstart": "tsx scripts/quickstart.ts"
+    "quickstart": "tsx scripts/quickstart.ts",
+    "dev": "tsx scripts/dev.ts",
+    "build": "next build",
+    "start": "next start -p 3000",
+    "web:dev": "next dev -p 3000"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^26.2.0",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "postcss": "^8.5.26",
+    "server-only": "^0.0.1",
+    "tailwindcss": "^4.3.3",
     "tsx": "^4.23.12",
     "typescript": "^5.7.2",
     "vitest": "^4.1.11"
+  },
+  "dependencies": {
+    "next": "^15.5.23",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
   }
 }
