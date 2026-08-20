@@ -89,16 +89,25 @@ class PlannerChallenge:
 
 
 class Purchase:
-    def __init__(self, rating: int, quantity: int, unit_cost: int) -> None:
+    def __init__(
+        self, rating: int, quantity: int, unit_cost: int | None, basis: str = "unknown"
+    ) -> None:
         self.rating = rating
         self.quantity = quantity
         self.unit_cost = unit_cost
+        self.basis = basis
 
     @property
-    def coin_cost(self) -> int:
-        return self.quantity * self.unit_cost
+    def is_priced(self) -> bool:
+        return self.unit_cost is not None
+
+    @property
+    def coin_cost(self) -> int | None:
+        return None if self.unit_cost is None else self.quantity * self.unit_cost
 
     def describe(self) -> str:
+        if self.unit_cost is None:
+            return f"{self.quantity} rated {self.rating} at an unknown price"
         return f"{self.quantity} rated {self.rating} at {self.unit_cost} each"
 
 
@@ -114,18 +123,44 @@ class GrindStep:
         self.unlocks = unlocks
 
     @property
-    def coin_cost(self) -> int:
-        return sum(p.coin_cost for p in self.purchases)
+    def unpriced(self) -> list[Purchase]:
+        return [p for p in self.purchases if not p.is_priced]
 
     @property
-    def coins_per_squad(self) -> float:
-        return self.coin_cost / self.extra_squads if self.extra_squads else float("inf")
+    def is_costable(self) -> bool:
+        return not self.unpriced
+
+    @property
+    def coin_cost(self) -> int | None:
+        """None when any purchase in the step has no price.
+
+        A partial total would be read as the total, which is the same failure the
+        purchase suppression on a flagged challenge exists to prevent.
+        """
+        if not self.is_costable:
+            return None
+        return sum(p.coin_cost or 0 for p in self.purchases)
+
+    @property
+    def coins_per_squad(self) -> float | None:
+        cost = self.coin_cost
+        if cost is None or not self.extra_squads:
+            return None
+        return cost / self.extra_squads
 
     def describe(self) -> str:
         if not self.purchases:
             return f"{self.extra_squads} more squad(s) for nothing"
         what = ", ".join(p.describe() for p in self.purchases)
         gained = ", ".join(f"{name} +{n}" for name, n in sorted(self.unlocks.items()) if n)
+
+        if not self.is_costable:
+            which = ", ".join(str(p.rating) for p in self.unpriced)
+            return (
+                f"buy {what} to unlock {self.extra_squads} more squad(s) ({gained}). "
+                f"COST NOT QUOTED: rating(s) {which} have no price. Add one to the price "
+                f"table before treating this as a shopping list"
+            )
         return (
             f"buy {what} for {self.coin_cost} coins to unlock {self.extra_squads} more "
             f"squad(s) ({gained}), {round(self.coins_per_squad)} coins per squad"
@@ -305,11 +340,26 @@ class GrindPlan:
             )
             return "\n".join(lines)
 
+        uncostable = [s for s in self.steps if s.extra_squads > 0 and not s.is_costable]
         best = self.biggest_unlock
         if best is None:
-            lines.append("Nothing left to unlock by buying: the queue is fully fed.")
+            if uncostable:
+                missing = sorted(
+                    {p.rating for step in uncostable for p in step.unpriced}
+                )
+                lines.append(
+                    "No purchase can be ranked by value: every step needs cards at "
+                    f"rating(s) {', '.join(str(r) for r in missing)}, which have no price. "
+                    "Add them to the price table and this becomes a shopping list."
+                )
+                for step in uncostable:
+                    lines.append(f"  {step.describe()}")
+            else:
+                lines.append("Nothing left to unlock by buying: the queue is fully fed.")
         else:
             lines.append(f"Best value purchase: {best.describe()}")
+            for step in uncostable:
+                lines.append(f"Also possible, but not costable: {step.describe()}")
         return "\n".join(lines)
 
     @property
@@ -319,10 +369,12 @@ class GrindPlan:
         Ranked by coins per squad, because "most additional squads" without a
         price attached just recommends the most expensive thing on the list.
         """
-        affordable = [s for s in self.steps if s.extra_squads > 0]
+        # Only steps that can actually be costed are ranked. Ranking an uncosted
+        # step by value would mean inventing the value it is ranked on.
+        affordable = [s for s in self.steps if s.extra_squads > 0 and s.is_costable]
         if not affordable:
             return None
-        return min(affordable, key=lambda s: (s.coins_per_squad, s.coin_cost))
+        return min(affordable, key=lambda s: (s.coins_per_squad or 0, s.coin_cost or 0))
 
 
 def _held_and_prices(pool: list[PoolCard]) -> tuple[dict[int, int], dict[int, int]]:
@@ -396,6 +448,7 @@ def _diagnose_depths(
     achieved: int,
     budget: float,
     max_depth_probes: int | None,
+    rating_prices: dict[int, int] | None = None,
 ) -> tuple[list[DepthBlock], list[SupplyShortfall], int]:
     """Diagnose each squad depth separately, not just the first unbuildable one.
 
@@ -427,7 +480,9 @@ def _diagnose_depths(
     supply_depths = [d.depth for d in depths if d.mode == "supply"]
     conditional: list[SupplyShortfall] = []
     if supply_depths:
-        conditional = _supply_diagnosis(pool, challenge.multisets, supply_depths[-1])
+        conditional = _supply_diagnosis(
+            pool, challenge.multisets, supply_depths[-1], rating_prices
+        )
     return depths, conditional, probe_to
 
 
@@ -437,6 +492,7 @@ def plan_grind(
     *,
     max_extra_steps: int = 3,
     known_achievable: dict[str, int] | None = None,
+    rating_prices: dict[int, int] | None = None,
     time_budget_seconds: float = 5.0,
     max_depth_probes: int | None = None,
 ) -> GrindPlan:
@@ -449,8 +505,21 @@ def plan_grind(
         {r for c in challenges if c.multisets for combo in c.multisets for r in combo}
         | set(held)
     )
-    fallback = max(cheapest.values()) if cheapest else 1
-    unit = {r: cheapest.get(r, fallback) for r in ratings}
+    # Same resolution as the supply diagnosis, and the same refusal to invent a
+    # price: table, then the club, then genuinely unpriced.
+    supplied = rating_prices or {}
+    unit: dict[int, int | None] = {}
+    basis: dict[int, str] = {}
+    for r in ratings:
+        if r in supplied:
+            unit[r], basis[r] = supplied[r], "table"
+        elif r in cheapest:
+            unit[r], basis[r] = cheapest[r], "pool"
+        else:
+            unit[r], basis[r] = None, "unknown"
+    priced_values = [v for v in unit.values() if v is not None]
+    sentinel = (max(priced_values) * 100 + 1) if priced_values else 1
+    weight = {r: (unit[r] if unit[r] is not None else sentinel) for r in ratings}
 
     def solve(model, objective_is_max: bool, *, extra: tuple | None = None):
         solver = cp_model.CpSolver()
@@ -482,7 +551,8 @@ def plan_grind(
                 continue
             pinned[challenge.name] = achieved
             depths, conditional, probed_to = _diagnose_depths(
-                pool, challenge, achieved, time_budget_seconds, max_depth_probes
+                pool, challenge, achieved, time_budget_seconds, max_depth_probes,
+                rating_prices,
             )
             blocks.append(
                 RequirementBlock(
@@ -526,16 +596,23 @@ def plan_grind(
         for name, achieved in pinned.items():
             model.Add(squads[name] == achieved)
         model.Add(sum(squads[c.name] for c in challenges) >= target)
-        model.Minimize(sum(add[r] * unit[r] for r in ratings))
+        model.Minimize(sum(add[r] * weight[r] for r in ratings))
         step_solver = solve(model, False)
         if step_solver is None:
             break
         purchases = [
-            Purchase(rating=r, quantity=step_solver.Value(add[r]), unit_cost=unit[r])
+            Purchase(
+                rating=r,
+                quantity=step_solver.Value(add[r]),
+                unit_cost=unit[r],
+                basis=basis[r],
+            )
             for r in ratings
             if step_solver.Value(add[r]) > 0
         ]
-        purchases.sort(key=lambda p: p.coin_cost)
+        # Priced first, cheapest among them, unpriced last so nothing that cannot
+        # be costed heads a list that reads as a recommendation.
+        purchases.sort(key=lambda p: (0 if p.is_priced else 1, p.coin_cost or 0))
         unlocks = {
             c.name: step_solver.Value(squads[c.name]) - baseline[c.name] for c in challenges
         }

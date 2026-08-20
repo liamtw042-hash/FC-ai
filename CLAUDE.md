@@ -63,6 +63,9 @@ request.
 - Never return an invalid squad. Never return a suboptimal one without labelling it.
 - Anything inferred rather than observed is marked `verified: false` and surfaced at startup.
 - Work on `feat/` branches, merge to `main` when tests pass, never push to `main` directly.
+  Enforced by `npm run check:branches`, which fails if any commit on `main` did not
+  arrive through a merge from a `feat/` branch. `npm run hooks:install` wires it to
+  pre-push so it does not depend on anyone remembering.
 - Never commit club data or API keys.
 - No em dashes anywhere.
 

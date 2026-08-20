@@ -42,14 +42,59 @@ class TestItPicksTheCheapestGapToClose:
         assert [s.missing for s in shortfalls] == [6, 6]
         assert [s.cost_to_close for s in shortfalls] == [6000, 24000]
 
-    def test_a_rating_the_club_holds_none_of_still_gets_a_price(self):
-        # Otherwise the report cannot say what closing the gap would cost.
+    def test_a_rating_the_club_holds_none_of_is_UNPRICED_not_estimated(self):
+        # It used to be priced at the dearest card in the club, which can be out
+        # by a large factor: a club topping out at 83 asked for 86s would quote an
+        # 83's price. A wrong number gets acted on, a missing one gets asked about.
         pool = cards(83, 60, 1200)
         shortfalls = _supply_diagnosis(pool, [{86: 4, 83: 7}], 2)
         (eighty_six,) = [s for s in shortfalls if s.rating == 86]
         assert eighty_six.held == 0
         assert eighty_six.missing == 8
-        assert eighty_six.cost_to_close is not None
+        assert eighty_six.unit_cost is None
+        assert eighty_six.cost_to_close is None
+        assert eighty_six.basis == "unknown"
+        assert not eighty_six.is_priced
+
+    def test_a_supplied_price_table_fills_the_gap(self):
+        # The rating table is the real price source, so given one there is no
+        # unpriced rating at all.
+        pool = cards(83, 60, 1200)
+        shortfalls = _supply_diagnosis(
+            pool, [{86: 4, 83: 7}], 2, rating_prices={86: 9000}
+        )
+        (eighty_six,) = [s for s in shortfalls if s.rating == 86]
+        assert eighty_six.unit_cost == 9000
+        assert eighty_six.basis == "table"
+        assert eighty_six.cost_to_close == 8 * 9000
+
+    def test_a_table_price_beats_the_club_price_for_the_same_rating(self):
+        pool = cards(86, 4, 4000) + cards(83, 60, 1200)
+        shortfalls = _supply_diagnosis(
+            pool, [{86: 4, 83: 7}], 2, rating_prices={86: 9000}
+        )
+        (eighty_six,) = [s for s in shortfalls if s.rating == 86]
+        assert eighty_six.basis == "table"
+        assert eighty_six.unit_cost == 9000
+
+    def test_unpriced_gaps_never_head_the_list(self):
+        # Whatever is listed first reads as the recommendation, so a gap that
+        # cannot be costed goes last.
+        pool = cards(83, 60, 1200) + cards(85, 2, 500)
+        shortfalls = _supply_diagnosis(pool, [{86: 3, 85: 4, 83: 4}], 3)
+        assert len(shortfalls) >= 2
+        assert shortfalls[0].is_priced
+        assert not shortfalls[-1].is_priced
+
+    def test_the_model_avoids_an_unpriced_rating_when_it_has_a_priced_option(self):
+        # Deliberate bias toward the option that can be reported honestly, which
+        # means the chosen mix may not be the true cheapest. Said out loud.
+        pool = cards(85, 2, 500) + cards(83, 60, 1200) + cards(82, 60, 900)
+        shortfalls = _supply_diagnosis(
+            pool, [{86: 4, 85: 1, 83: 6}, {85: 4, 83: 4, 82: 3}], 3
+        )
+        # The second shape needs no 86s at all, and 86 is the unpriced rating.
+        assert all(s.rating != 86 for s in shortfalls)
 
 
 class TestWithNoRatingConstraint:
