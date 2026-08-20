@@ -1,4 +1,6 @@
 #!/bin/sh
 # Refuses a rebase over uncommitted tracked work. Installed by npm run hooks:install.
+# See pre-push for why this is `node` rather than `npx`.
 set -e
-npx tsx scripts/safeHistory.ts check
+root=$(git rev-parse --show-toplevel)
+node "$root/node_modules/tsx/dist/cli.mjs" "$root/scripts/safeHistory.ts" check

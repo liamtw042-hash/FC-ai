@@ -8,21 +8,27 @@ this page top to bottom and fails if the last step does not build ten squads.
 
 ## What you need
 
-Node 20 or newer, Python 3.11 or newer, and about ten minutes. The whole page
+Node 20.11 or newer, Python 3.10 or newer, and about ten minutes. The whole page
 takes around seven of those, and nearly all of it is the last step: a real
 optimisation over about eight hundred cards, solved as one model rather than ten.
 
-```bash
+Every command on this page works unchanged in PowerShell, cmd and a POSIX shell.
+
+```
 npm install
 npm run solver:install
 ```
+
+On Windows, `npm run solver:install` runs `py -3 -m pip install`, not `pip`: pip
+warns when its `Scripts` directory is not on PATH, and on that machine the console
+scripts it installed are not callable by name. Nothing here calls one.
 
 ## 1. Start the solver
 
 The rules engine is TypeScript and the search is Python. They talk over HTTP on
 127.0.0.1 and nothing else.
 
-```bash
+```
 npm run solver:dev
 ```
 
@@ -39,11 +45,14 @@ clubs, invented prices. It is there because the real player database loader is
 blocked on an API key, and nothing downstream of a card database can be run
 without one. See `data/sample/README.md`.
 
-```bash
+```
 npx tsx scripts/fcai.ts import cards data/sample/cards.csv
 npx tsx scripts/fcai.ts import club data/sample/club.csv
 npx tsx scripts/fcai.ts import prices data/sample/prices.json
 ```
+
+Forward slashes in those paths are fine on Windows: they are arguments, and Node
+resolves them either way.
 
 The club import prints its coverage rather than a tick:
 
@@ -65,7 +74,7 @@ takes a column map for anything else.
 
 ## 3. Look at what you have
 
-```bash
+```
 npx tsx scripts/fcai.ts status
 ```
 
@@ -80,28 +89,26 @@ the PENDING.md entry that would clear each one. That list is not decoration.
 Passing tests prove the code matches the spec; they do not prove the spec matches
 the game, and anything on that list could be wrong in a way no test can catch.
 
-```bash
+```
 npx tsx scripts/fcai.ts list --rating 86 --limit 5
 ```
 
 ## 4. Add the SBC
 
-```bash
+```
 npx tsx scripts/fcai.ts sbc add data/sample/sbc/eighty-five.json
 ```
 
 That is a one line definition: 4-4-2, team rating 85, repeatable ten times, no
 other requirements. You can write one at the prompt instead:
 
-```bash
-npx tsx scripts/fcai.ts sbc define "premier four" --formation 4-3-3 --rating 84 \
-  --requirement "playersFromLeague:min:4:league=Premier Division" \
-  --requirement "rareCount:min:8"
+```
+npx tsx scripts/fcai.ts sbc define "premier four" --formation 4-3-3 --rating 84 --requirement "playersFromLeague:min:4:league=Premier Division" --requirement "rareCount:min:8"
 ```
 
 ## 5. Solve it ten times
 
-```bash
+```
 npx tsx scripts/fcai.ts solve "eighty five" --repeat 10 --time 180
 ```
 
@@ -138,7 +145,7 @@ to keep trying.
 
 Ask for more than the club can feed:
 
-```bash
+```
 npx tsx scripts/fcai.ts solve "eighty five" --repeat 14 --time 60
 ```
 
@@ -167,7 +174,7 @@ is quoted at all rather than an estimate that would read like one.
 A queue is any mix of one offs, sets and repeats solved against one club, with
 priorities deciding who gets the scarce fodder.
 
-```bash
+```
 npx tsx scripts/fcai.ts sbc add data/sample/sbc/premier-marquee.json
 npx tsx scripts/fcai.ts queue data/sample/queue-example.json --time 180
 ```
@@ -178,7 +185,7 @@ would unlock one more squad, or with the fact that nothing would.
 
 ## Checking this page still works
 
-```bash
+```
 npm run quickstart
 ```
 

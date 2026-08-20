@@ -120,24 +120,44 @@ npm run fixture:check                          run every fixture
 
 ### Running it
 
-One command starts both processes:
+Node 20.11 or newer, Python 3.10 or newer. The same three commands on every
+platform, in PowerShell, cmd, or a POSIX shell:
 
-```bash
+```
 npm install
 npm run solver:install
-npm run dev                   # solver on :8000, web on :3000, output labelled
+npm run dev
 ```
 
-Then open http://127.0.0.1:3000. Or run just the solver, if you only want the
-command line:
+Then open http://127.0.0.1:3000. `npm run dev` starts the solver on :8000 and the
+web app on :3000, labels each line with which one produced it, and stops both if
+either dies.
 
-```bash
+**Nothing is spawned by name.** Node CLIs are launched by running Node against the
+package's own entry point, because `npx`, `tsx` and `next` are `.cmd` shims on
+Windows and a `.cmd` cannot be spawned without a shell. Python is found by probing
+`py -3`, then `python`, then `python3`, and every Python tool is invoked as
+`<interpreter> -m <module>` rather than by console script name, because `pip`
+warns when its `Scripts` directory is not on PATH and on that machine `uvicorn`
+and `pytest` are not callable even though both are installed.
+
+If the probe picks the wrong interpreter, or you keep several:
+
+```
+set FC_AI_PYTHON=C:\Python314\python.exe        (cmd)
+$env:FC_AI_PYTHON = "C:\Python314\python.exe"   (PowerShell)
+export FC_AI_PYTHON=/usr/bin/python3.12         (POSIX)
+```
+
+Or run just the solver, if you only want the command line:
+
+```
 npm run solver:dev            # 127.0.0.1:8000, leave it running
 ```
 
 The command line, in another terminal:
 
-```bash
+```
 npx tsx scripts/fcai.ts help
 npx tsx scripts/fcai.ts import cards data/sample/cards.csv
 npx tsx scripts/fcai.ts import club data/sample/club.csv

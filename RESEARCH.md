@@ -870,6 +870,56 @@ Two details that matter more than they look:
   `relaxationOffer` always offer fails a fourth. An assertion that passes against broken code
   is not evidence.
 
+### 8.14 Windows: nothing is spawned by name
+
+`npm run dev` failed on Windows 11 with `spawn npx ENOENT`. `npx`, `tsx` and `next` are
+`.cmd` shims there, and a `.cmd` is not an executable: `CreateProcess` cannot run one.
+
+**The usual fix, `shell: true`, was rejected.** It hands the whole command line to `cmd.exe`
+to re-parse, so a path containing a space or an `&` becomes a quoting bug and every argument
+becomes an injection surface. Instead `scripts/lib/platform.ts` runs NODE ITSELF against the
+package's own entry point, read from that package's `bin` field so a version bump cannot
+move it. `process.execPath` and a `.mjs` file are the same on every platform and need no
+shell at all. Verified by running `next` and `tsx` that way and reading their versions back.
+
+**Python is probed, not assumed.** `python3` is the normal name on POSIX and usually absent
+on Windows. The candidates are `py -3`, then `python`, then `python3` on Windows and the
+reverse on POSIX; `py` comes first because pythoncore installs it into System32, so it is on
+PATH even when the Python directory is not. `FC_AI_PYTHON` overrides the probe. A missing
+interpreter is a sentence naming every candidate tried, rather than an ENOENT that says
+nothing about which of three names was absent.
+
+**Every Python tool is invoked as `-m <module>`, never by console script name.** pip warns
+when its `Scripts` directory is not on PATH, and on that machine `uvicorn` and `pytest` are
+not callable by name even though both are installed. `-m` needs nothing on PATH but the
+interpreter. The npm scripts that said `cd solver && python3 -m pytest` now go through
+`scripts/python.ts`.
+
+**The guards scan the source, not the fix.** Four of them, in `scripts/lib/platform.test.ts`:
+nothing spawns a name that is a `.cmd` shim, nothing spawns `python3`, `pip`, `uvicorn` or
+`pytest` by name, nothing reaches for `shell: true`, and no npm script calls `python3` or a
+bare `pip`. Reintroducing the reported bug fails all four. They scan CODE rather than text:
+the first version fired on this repository's own comments, which explain the bug by quoting
+it, and a guard that makes you write worse comments to stay green is a guard that gets
+deleted.
+
+**Two more Windows breakages found on the way through**, neither reported:
+
+- **`.gitattributes` was missing.** Git for Windows checks out CRLF by default, and a
+  `#!/bin/sh` hook with a CR at the end of the shebang fails with `bad interpreter:
+  /bin/sh^M`. `.githooks/*` and `*.sh` are now pinned to LF. The hooks also stopped calling
+  `npx` for the same shim reason.
+- **A documented command used backslash line continuations.** `sbc define` in QUICKSTART.md
+  spanned three lines POSIX-style, which is `^` in cmd and a backtick in PowerShell. It is
+  one line now, and the fences that said `bash` no longer say it, because they are not bash
+  on the machine the reader is on.
+
+**What could not be verified here.** This machine is Linux. Everything above was exercised
+on it, including the failure paths, and the Windows-specific branches are pure functions
+taking the platform as an argument so they run here too. What no test on this machine can
+prove is that Windows resolves `py -3` on that particular install. That is one command, and
+it is in the report rather than assumed.
+
 ## 9. Still open
 
 | Ref | Item | Status |

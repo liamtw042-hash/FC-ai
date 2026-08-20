@@ -12,10 +12,10 @@
  */
 
 import { spawnSync } from 'node:child_process'
-import { dirname, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+import { REPO_ROOT, nodeCli } from './lib/platform.ts'
+
+const ROOT = REPO_ROOT
 
 /** Exactly the commands QUICKSTART.md prints, in the order it prints them. */
 const STEPS: string[][] = [
@@ -28,10 +28,14 @@ const STEPS: string[][] = [
 ]
 
 function run(args: string[]): { code: number; out: string } {
-  const result = spawnSync('npx', ['tsx', 'scripts/fcai.ts', ...args], {
+  // Through Node against tsx's own entry point, never through the `npx` shim:
+  // on Windows `npx` is `npx.cmd` and a `.cmd` cannot be spawned without a shell.
+  const tsx = nodeCli('tsx', ['scripts/fcai.ts', ...args], ROOT)
+  const result = spawnSync(tsx.command, tsx.args, {
     cwd: ROOT,
     encoding: 'utf8',
     maxBuffer: 64 * 1024 * 1024,
+    windowsHide: true,
   })
   return { code: result.status ?? 1, out: `${result.stdout ?? ''}${result.stderr ?? ''}` }
 }
