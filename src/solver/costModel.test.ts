@@ -221,3 +221,46 @@ describe('summarising a squad', () => {
     expect(summary.oldestPriceAsOf).toBe('2026-08-10T00:00:00Z')
   })
 })
+
+describe('costs are whole coins, because the multi squad margin depends on it', () => {
+  // The solver scales cost by maxSquads + 1 so one coin outweighs the squad count
+  // tie break. That only holds while the smallest cost difference is 1. A
+  // fractional coin makes it arbitrarily small and the tie break starts deciding
+  // things it has no business deciding.
+
+  it('refuses a fractional price rather than rounding it', () => {
+    expect(() => costOf(card(), { ...price(100), coins: 100.5 })).toThrow(
+      /whole number of coins/,
+    )
+  })
+
+  it('says why, so the failure is actionable rather than mysterious', () => {
+    expect(() => costOf(card(), { ...price(100), coins: 0.5 })).toThrow(
+      /smallest cost difference is 1/,
+    )
+  })
+
+  it('refuses fractional weights too, which are the other way in', () => {
+    for (const broken of [
+      { ...DEFAULT_COST_WEIGHTS, duplicateBonus: -100.5 },
+      { ...DEFAULT_COST_WEIGHTS, sbcStorageBonus: -0.5 },
+      { ...DEFAULT_COST_WEIGHTS, untradeableCost: 1.25 },
+    ]) {
+      expect(() => solverCostOffset(broken)).toThrow(/whole number of coins/)
+    }
+  })
+
+  it('accepts a whole number written as a float', () => {
+    expect(costOf(card(), { ...price(100), coins: 100.0 }).solverCost).toBeGreaterThanOrEqual(0)
+  })
+
+  it('so every solver cost it produces is an integer', () => {
+    for (const coins of [0, 1, 999, 250_000]) {
+      for (const quantity of [1, 4]) {
+        const cost = costOf(card({ quantity }), price(coins))
+        expect(Number.isInteger(cost.solverCost)).toBe(true)
+        expect(Number.isInteger(cost.weightedCost)).toBe(true)
+      }
+    }
+  })
+})

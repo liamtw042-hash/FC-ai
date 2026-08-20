@@ -27,6 +27,27 @@ from .schema import ChemistryConfig, PlacedCard, PoolCard, Requirement
 from .squad_size import SQUAD_SIZE, require_squad_size
 
 
+def lexicographic_scale(max_squads: int) -> int:
+    """The multiplier that makes cost dominate the squad count tie break.
+
+    The count term is the number of squads built, which is bounded above by
+    max_squads. Scaling cost by max_squads + 1 therefore makes one coin of real
+    cost strictly larger than the entire count term, so the tie break can only
+    ever decide between solutions of equal cost.
+
+    This holds ONLY because costs are whole coins. A fractional coin makes the
+    smallest cost difference arbitrarily small and the tie break starts deciding
+    things it has no business deciding. Both boundaries refuse non integer costs:
+    costModel.ts on the way out, pydantic on the way in.
+    """
+    return max_squads + 1
+
+
+def lexicographic_objective(total_cost: int, squads_built: int, max_squads: int) -> int:
+    """The value the model minimises, as a plain function, so it can be tested."""
+    return total_cost * lexicographic_scale(max_squads) + squads_built
+
+
 class NegativeCostError(ValueError):
     """A card was priced below zero, which would let extra squads look free."""
 
@@ -108,6 +129,7 @@ def solve_variable_count(
 
     model.Add(sum(built) >= min_squads)
 
+    scale = lexicographic_scale(max_squads)
     # Lexicographic: cost first, then FEWER SQUADS.
     #
     # Without the second term the objective is merely indifferent when the fodder
@@ -117,8 +139,7 @@ def solve_variable_count(
     #
     # Scaling the cost by max_squads + 1 makes a single coin of real cost outweigh
     # the entire count term, so the tie break can never override a genuine price
-    # difference. It only decides ties.
-    scale = max_squads + 1
+    # difference. It only decides ties. See lexicographic_scale.
     model.Minimize(
         sum(
             place[j][i][s] * pool[i].cost * scale

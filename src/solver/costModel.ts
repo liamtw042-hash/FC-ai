@@ -34,6 +34,18 @@
  * same for every card, so an eleven card squad shifts by exactly 11 * offset and
  * the within squad ordering is IDENTICAL. Across squads the total grows with the
  * squad count, so an extra squad can never reduce the objective.
+ *
+ * COSTS ARE WHOLE COINS, AND THAT IS LOAD BEARING.
+ *
+ * The multi squad objective is lexicographic: cost scaled by maxSquads + 1, plus
+ * the squad count as a tie break. That scaling only dominates if the smallest
+ * possible cost difference is 1. A fractional coin makes the smallest difference
+ * arbitrarily small and the tie break starts overriding real price differences.
+ *
+ * So a non integer price or weight is refused here rather than rounded. Rounding
+ * would be a silent change to what things cost, and the solver on the other side
+ * of the boundary rejects it anyway, so the only question is whether the failure
+ * names the cause.
  */
 
 import type { ResolvedCard } from '../types/cards'
@@ -72,7 +84,20 @@ export interface CostContext {
  * card. Only the negative weights count: a positive weight cannot push a cost
  * below zero, so including it would inflate the offset for nothing.
  */
+function requireWholeCoins(value: number, what: string): void {
+  if (!Number.isInteger(value)) {
+    throw new RangeError(
+      `${what} must be a whole number of coins, got ${value}. The multi squad ` +
+        `objective scales cost by maxSquads + 1 to dominate the squad count tie ` +
+        `break, and that only holds when the smallest cost difference is 1.`,
+    )
+  }
+}
+
 export function solverCostOffset(weights: CostWeights): number {
+  requireWholeCoins(weights.untradeableCost, 'untradeableCost')
+  requireWholeCoins(weights.duplicateBonus, 'duplicateBonus')
+  requireWholeCoins(weights.sbcStorageBonus, 'sbcStorageBonus')
   const negatives =
     Math.min(0, weights.untradeableCost) +
     Math.min(0, weights.duplicateBonus) +
@@ -120,6 +145,7 @@ export function costOf(
   if (price.coins < 0) {
     throw new RangeError(`a price cannot be negative, got ${price.coins} for ${card.definition.defId}`)
   }
+  requireWholeCoins(price.coins, `the price of ${card.definition.defId}`)
 
   return {
     coinsSpent,

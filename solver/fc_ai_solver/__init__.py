@@ -10,7 +10,10 @@ from .schema import (
     SolveRequest,
     SolveResponse,
 )
+from .grind_planner import GrindPlan, GrindStep, PlannerChallenge, Purchase, plan_grind
 from .repeat_solve import (
+    lexicographic_objective,
+    lexicographic_scale,
     NegativeCostError,
     RepeatOutcome,
     RepeatSolution,
@@ -42,6 +45,11 @@ __all__ = [
     "SolveResponse",
     "SQUAD_SIZE",
     "ChallengeImpossible",
+    "GrindPlan",
+    "GrindStep",
+    "PlannerChallenge",
+    "Purchase",
+    "plan_grind",
     "MixedSquadSizeError",
     "NegativeCostError",
     "RepeatOutcome",
@@ -55,5 +63,7 @@ __all__ = [
     "add_chemistry",
     "solve_repeat",
     "solve_variable_count",
+    "lexicographic_objective",
+    "lexicographic_scale",
     "solve_single",
 ]
