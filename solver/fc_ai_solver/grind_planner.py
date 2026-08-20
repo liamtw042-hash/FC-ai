@@ -117,10 +117,15 @@ class GrindStep:
         extra_squads: int,
         purchases: list[Purchase],
         unlocks: dict[str, int],
+        avoided_unpriced: list[int] | None = None,
     ) -> None:
         self.extra_squads = extra_squads
         self.purchases = purchases
         self.unlocks = unlocks
+        # Ratings this step could have bought but was steered away from because
+        # they have no price. A caveat only counts where the number is, so it goes
+        # in describe() rather than only in a design note.
+        self.avoided_unpriced = avoided_unpriced or []
 
     @property
     def unpriced(self) -> list[Purchase]:
@@ -161,9 +166,18 @@ class GrindStep:
                 f"COST NOT QUOTED: rating(s) {which} have no price. Add one to the price "
                 f"table before treating this as a shopping list"
             )
+
+        caveat = ""
+        if self.avoided_unpriced:
+            which = ", ".join(str(r) for r in self.avoided_unpriced)
+            caveat = (
+                f". NOT NECESSARILY THE CHEAPEST: this mix avoids rating(s) {which}, "
+                f"which have no price, so a mix using them might cost less and nothing "
+                f"here can tell. Price them to find out"
+            )
         return (
             f"buy {what} for {self.coin_cost} coins to unlock {self.extra_squads} more "
-            f"squad(s) ({gained}), {round(self.coins_per_squad)} coins per squad"
+            f"squad(s) ({gained}), {round(self.coins_per_squad)} coins per squad{caveat}"
         )
 
 
@@ -361,6 +375,11 @@ class GrindPlan:
             for step in uncostable:
                 lines.append(f"Also possible, but not costable: {step.describe()}")
         return "\n".join(lines)
+
+    @property
+    def avoided_unpriced(self) -> list[int]:
+        """Every rating the plan was steered away from for want of a price."""
+        return sorted({r for step in self.steps for r in step.avoided_unpriced})
 
     @property
     def biggest_unlock(self) -> GrindStep | None:
@@ -616,7 +635,18 @@ def plan_grind(
         unlocks = {
             c.name: step_solver.Value(squads[c.name]) - baseline[c.name] for c in challenges
         }
-        steps.append(GrindStep(extra_squads=extra, purchases=purchases, unlocks=unlocks))
+        bought = {p.rating for p in purchases}
+        avoided = sorted(
+            r for r in ratings if basis[r] == "unknown" and r not in bought
+        )
+        steps.append(
+            GrindStep(
+                extra_squads=extra,
+                purchases=purchases,
+                unlocks=unlocks,
+                avoided_unpriced=avoided,
+            )
+        )
 
     supply_limited = [
         c.name

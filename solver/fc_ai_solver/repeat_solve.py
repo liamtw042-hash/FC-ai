@@ -524,6 +524,7 @@ def _supply_diagnosis(
     multisets: list[dict[int, int]] | None,
     count: int,
     rating_prices: dict[int, int] | None = None,
+    avoided_unpriced: list[int] | None = None,
 ) -> list[SupplyShortfall]:
     """Which ratings the club runs out of at this count, and by how many.
 
@@ -536,6 +537,10 @@ def _supply_diagnosis(
     twelve rated 85 can both close the same gap, and which one to go and buy
     depends on what they cost, not on how many there are.
     """
+    if avoided_unpriced is None:
+        avoided_unpriced = []
+    avoided_unpriced.clear()
+
     held: dict[int, int] = defaultdict(int)
     cheapest: dict[int, int] = {}
     for card in pool:
@@ -621,6 +626,14 @@ def _supply_diagnosis(
             s.missing,
         )
     )
+    # Ratings the model could have bought but avoided BECAUSE they have no price.
+    # The weighting deliberately pushes it away from them, so a mix using them
+    # might be cheaper and nothing here can tell. Recorded so the caller can say so
+    # next to the numbers rather than only in a design note.
+    bought = {s.rating for s in shortfalls}
+    avoided_unpriced.extend(
+        sorted(r for r in ratings if basis[r] == "unknown" and r not in bought)
+    )
     return shortfalls
 
 
@@ -632,7 +645,10 @@ def _supply_or_unexplained(
     pairs_searched: bool,
 ) -> ShortfallDiagnosis:
     """Supply first, because a requirement named for a supply problem misleads."""
-    shortfalls = _supply_diagnosis(search.pool, search.multisets, target_count)
+    avoided: list[int] = []
+    shortfalls = _supply_diagnosis(
+        search.pool, search.multisets, target_count, avoided_unpriced=avoided
+    )
     if shortfalls:
         lines = "; ".join(s.describe(target_count) for s in shortfalls)
         tail = ""
@@ -643,6 +659,15 @@ def _supply_or_unexplained(
                 f". These are all needed together, not instead of each other. The total "
                 f"cost is NOT quoted because rating(s) {which} have no price: supply one "
                 f"before treating this as a shopping list"
+            )
+        elif avoided:
+            which = ", ".join(str(r) for r in avoided)
+            total = sum(s.cost_to_close or 0 for s in shortfalls)
+            plural = "s" if len(shortfalls) > 1 else ""
+            tail = (
+                f". {'All of these are needed together, ' if len(shortfalls) > 1 else ''}"
+                f"{total} coins in total. This mix AVOIDS rating{plural} {which}, which have "
+                f"no price, so a mix using them might be cheaper and nothing here can tell"
             )
         elif len(shortfalls) > 1:
             # These are not alternatives. The model returns the cheapest SET of

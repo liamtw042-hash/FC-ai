@@ -69,10 +69,14 @@ price, and excludes the step from the best-value ranking, because ranking it wou
 mean inventing the value it is ranked on. That is the same treatment a flagged
 challenge gets, for the same reason.
 
-One deliberate bias, stated rather than hidden: in the optimisation an unpriced
-rating carries a weight above every priced one, so the model avoids buying what it
-cannot cost when a priced alternative exists. The chosen mix may therefore not be
-the true cheapest when an unpriced rating is involved.
+One deliberate bias, and it is now stated WHERE THE NUMBER IS rather than only
+here. In the optimisation an unpriced rating carries a weight above every priced
+one, so the model avoids buying what it cannot cost when a priced alternative
+exists. A step whose mix dodged an unpriced rating now says so next to its own coin
+figure: "NOT NECESSARILY THE CHEAPEST: this mix avoids rating(s) 86, which have no
+price, so a mix using them might cost less and nothing here can tell." A caveat in a
+design note is not a caveat, for the same reason a warning beside a coin figure is
+not a suppression.
 
 ### 6. `_supply_diagnosis`, solver failure
 **Was: incomplete and silent. FIXED.** Returned `[]` on a non-optimal status, which

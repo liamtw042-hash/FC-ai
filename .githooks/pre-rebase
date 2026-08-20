@@ -1,0 +1,4 @@
+#!/bin/sh
+# Refuses a rebase over uncommitted tracked work. Installed by npm run hooks:install.
+set -e
+npx tsx scripts/safeHistory.ts check
