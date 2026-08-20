@@ -445,8 +445,10 @@ def _build_exact(
 class _Search:
     """Runs the exact count models and keeps a note of how much work that took."""
 
-    def __init__(self, pool, slots, chemistry, multisets, budget, workers):
+    def __init__(self, pool, slots, chemistry, multisets, budget, workers, *, price_pool=None):
         self.pool = pool
+        # What the market charges, when `pool` is only what is left of the club.
+        self.price_pool = price_pool if price_pool is not None else pool
         self.slots = slots
         self.chemistry = chemistry
         self.multisets = multisets
@@ -525,6 +527,7 @@ def _supply_diagnosis(
     count: int,
     rating_prices: dict[int, int] | None = None,
     avoided_unpriced: list[int] | None = None,
+    price_pool: list[PoolCard] | None = None,
 ) -> list[SupplyShortfall]:
     """Which ratings the club runs out of at this count, and by how many.
 
@@ -542,9 +545,14 @@ def _supply_diagnosis(
     avoided_unpriced.clear()
 
     held: dict[int, int] = defaultdict(int)
-    cheapest: dict[int, int] = {}
     for card in pool:
         held[card.rating] += card.quantity
+    # HOW MANY is a question about this pool. HOW MUCH EACH is a question about the
+    # market, so prices come from the whole club when the pool being counted is a
+    # residual. Otherwise a rating the queue has spent down to zero reads as having
+    # no price at all, while the planner quotes it in the same output.
+    cheapest: dict[int, int] = {}
+    for card in price_pool if price_pool is not None else pool:
         if card.rating not in cheapest or card.cost < cheapest[card.rating]:
             cheapest[card.rating] = card.cost
 
@@ -647,7 +655,8 @@ def _supply_or_unexplained(
     """Supply first, because a requirement named for a supply problem misleads."""
     avoided: list[int] = []
     shortfalls = _supply_diagnosis(
-        search.pool, search.multisets, target_count, avoided_unpriced=avoided
+        search.pool, search.multisets, target_count, avoided_unpriced=avoided,
+        price_pool=search.price_pool,
     )
     if shortfalls:
         lines = "; ".join(s.describe(target_count) for s in shortfalls)

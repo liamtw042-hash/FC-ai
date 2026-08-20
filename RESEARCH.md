@@ -687,6 +687,86 @@ squad, and tradeable**. But **the provenance of each of those four fields is rec
 card**, whether it came from a pass or was defaulted, and the club page shows a coverage
 figure. "Untradeable status known for 210 of 612 cards", not a quiet assumption.
 
+### 8.3 Queue and set mode: one model, one pool
+
+A set is several challenges that must ALL complete; a queue is any mix of one offs, sets
+and repeats. Both are solved **jointly against the same club** rather than one at a time,
+because solving in sequence burns the good fodder on the first item and then fails on the
+fourth. Neither restates requirement logic: both compose `add_challenge`, and queue mode
+reports its supply picture through the existing grind planner rather than a second one.
+
+Two things made this work:
+
+- **Requirements are enforced only on squads that are actually built.** `add_challenge`
+  takes an optional `active` literal and gates every constraint on it. Without that gate an
+  unbuilt squad fails its own minimums and a queue the club cannot fully feed comes back
+  infeasible instead of partially solved.
+- **The objective is lexicographic**, build weighted by priority first and spend least
+  second, on the same `cost x (max + 1)` scale as repeat mode. Priority is what decides who
+  gets the scarce fodder.
+
+Set level infeasibility is reported **per challenge**, not as one failure for the set.
+"Challenges 1, 2 and 4 solvable, 3 fails on minimum 2 TOTW" is actionable; "the set failed"
+is not.
+
+### 8.4 CONTENTION: the fifth kind of cause
+
+Diagnosis had four modes: `requirement`, `requirement_pair`, `supply`, `unexplained`. There
+is a fifth, and queue mode is where it appears.
+
+The first mixed queue run produced a straight contradiction. Item `set: challenge B` was
+diagnosed as blocked by "the pool, though it holds enough cards at every rating" while the
+grind planner, in the same output, said buying 1x85 and 2x86 would unlock it. Both were
+right about different pools. The diagnosis ran against the **whole club**; the planner knew
+the other twelve squads had already spent it.
+
+**Contention is exactly "buildable alone, not buildable here", so that is the question asked
+first.**
+
+- Feasible alone, short in the queue: `mode="contention"`. It names the rivals at or above
+  this item's priority and gives the three real fixes: raise this item's priority, drop one
+  of those, or buy more fodder. The detail is then taken from the **residual** pool, what is
+  left after everyone else has taken their share, so the numbers agree with the planner.
+- Not feasible alone: the cause is intrinsic to the item, so the **whole club** is the right
+  pool to diagnose against. Against the residual an impossible requirement reads as "the
+  club is running out of cards", which is true of the leftovers and useless as advice. This
+  distinction cost a test to find and is asserted in
+  `test_an_item_that_could_not_be_built_ALONE_keeps_its_real_cause`.
+
+An item that is alone in the queue can never be reported as contention. There is nobody to
+blame but the club.
+
+**The contradiction had a second half, in the planner.** The planner decides whether a
+challenge is blocked by comparing what the queue built against its own per challenge
+ceiling. Those two numbers come from two different optimal solutions of a degenerate
+objective: when two challenges carry the same priority and the club can feed only one of
+them, which one gets the squad is an arbitrary tie break, and the two solvers are free to
+break it opposite ways. A challenge nothing was blocking then got flagged, reported as
+"the club can feed 1 squads but only 0 can be built. Buying cards would not help", and had
+its baseline read off the planner's tie break rather than what was really built, which made
+the first purchase step offer a squad back "for nothing".
+
+So when the real counts are known, each challenge is re ceilinged with every OTHER challenge
+**held at what it actually achieved**. That asks the only question a flag should turn on:
+with the rest of the queue as it stands, could this one have done better? If not, it lost
+the race rather than hitting a wall, and that is reported per item as contention, not as a
+block.
+
+**Prices come from the whole club, counts from what is left.** HOW MANY cards are missing is
+a question about the residual pool. HOW MUCH EACH costs is a question about the market, so
+`_Search` carries an optional `price_pool`. Without it, a rating the queue had spent down to
+zero read as having no price at all while the planner quoted it by name in the same output.
+
+### 8.5 Multi solution diversity
+
+`solve_alternatives` re solves with a hard difference constraint rather than reranking one
+solution. Each new squad must share at most `SQUAD_SIZE - min_difference` cards with **every**
+earlier one, not just the last, which is enforced with a per card overlap variable so
+duplicate quantities count correctly. **Pinned cards are excluded from the difference
+requirement**, otherwise a pin and a large K are contradictory and the search reports
+exhausted when it is only over constrained. Running out is reported honestly, "Only 1 of 5
+found", not as a failure. Count is capped at 20.
+
 ## 9. Still open
 
 | Ref | Item | Status |

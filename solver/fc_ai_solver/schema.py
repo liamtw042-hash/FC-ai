@@ -122,6 +122,11 @@ class SolveRequest(BaseModel):
     # The exact rating multiset to fill, chosen by the TypeScript enumerator.
     # Omitted means any ratings, which is only useful for tests.
     rating_counts: dict[int, int] | None = None
+    # Previously found squads this solve must differ from, as card id lists.
+    # Used by solve_alternatives to get genuinely different answers rather than
+    # five near identical ones.
+    exclude_similar_to: list[list[str]] = Field(default_factory=list)
+    min_difference: int = 3
     time_budget_seconds: float = 5.0
     # Reproducibility. CP-SAT is deterministic for a fixed worker count.
     workers: int = 8
