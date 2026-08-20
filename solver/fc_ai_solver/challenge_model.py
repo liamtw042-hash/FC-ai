@@ -135,6 +135,11 @@ def add_challenge(
     if needs_chemistry or chemistry is not None:
         slot_chemistry, squad_chemistry = add_chemistry(model, pool, slots, place, chemistry, tag)
 
+    # Collected rather than raised on the first one. A challenge with three
+    # unexpressible requirements used to report one, and the next appeared only
+    # after that one was dealt with.
+    unsupported: list[str] = []
+
     for requirement in requirements:
         kind = requirement.type
         op = requirement.op or "min"
@@ -222,6 +227,12 @@ def add_challenge(
         elif kind in ("managerNation", "managerLeague"):
             continue
         else:
-            raise UnsupportedRequirement(f"requirement {kind!r} is not expressible in this model")
+            unsupported.append(kind)
+
+    if unsupported:
+        names = ", ".join(sorted(set(unsupported)))
+        raise UnsupportedRequirement(
+            f"these requirements are not expressible in this model: {names}"
+        )
 
     return slot_chemistry, squad_chemistry

@@ -206,9 +206,15 @@ def solve_variable_count(
 
 
 class SupplyShortfall:
-    """How many cards of a rating are missing, and what closing the gap costs."""
+    """How many cards of a rating are missing, and what closing the gap costs.
 
-    def __init__(self, rating: int, needed: int, held: int, unit_cost: int | None) -> None:
+    rating is None when the challenge has no rating requirement, so the shortfall
+    is in cards generally. It used to be 0, which rendered as "cards rated 0".
+    """
+
+    def __init__(
+        self, rating: int | None, needed: int, held: int, unit_cost: int | None
+    ) -> None:
         self.rating = rating
         self.needed = needed
         self.held = held
@@ -223,9 +229,10 @@ class SupplyShortfall:
         return None if self.unit_cost is None else self.missing * self.unit_cost
 
     def describe(self, count: int) -> str:
+        what = "cards" if self.rating is None else f"cards rated {self.rating}"
         return (
-            f"{count} squads need {self.needed} cards rated {self.rating}, "
-            f"you have {self.held}, add {self.missing}"
+            f"{count} squads need {self.needed} {what}, you have {self.held}, "
+            f"add {self.missing}"
         )
 
 
@@ -520,7 +527,7 @@ def _supply_diagnosis(
         needed = count * SQUAD_SIZE
         if total >= needed:
             return []
-        return [SupplyShortfall(rating=0, needed=needed, held=total, unit_cost=None)]
+        return [SupplyShortfall(rating=None, needed=needed, held=total, unit_cost=None)]
 
     ratings = sorted({r for combo in multisets for r in combo})
     # A rating the club has none of still has a price, or the report cannot say
@@ -545,7 +552,14 @@ def _supply_diagnosis(
     solver.parameters.max_time_in_seconds = 5.0
     status = solver.Solve(model)
     if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-        return []
+        # Returning an empty list here would read as "the club has enough", and
+        # the caller would go on to blame a requirement. This model is small and
+        # always feasible, so a failure is a bug worth surfacing, not absorbing.
+        raise RuntimeError(
+            f"the supply model failed to solve for {count} squads (status "
+            f"{solver.StatusName(status)}). Empty would have been read as "
+            f"'the club has enough', which is not what this means."
+        )
 
     shortfalls = [
         SupplyShortfall(
@@ -573,10 +587,16 @@ def _supply_or_unexplained(
     shortfalls = _supply_diagnosis(search.pool, search.multisets, target_count)
     if shortfalls:
         lines = "; ".join(s.describe(target_count) for s in shortfalls)
-        cheapest = shortfalls[0]
         tail = ""
-        if len(shortfalls) > 1 and cheapest.cost_to_close is not None:
-            tail = f". Cheapest gap to close is {cheapest.missing} rated {cheapest.rating}"
+        if len(shortfalls) > 1:
+            # These are not alternatives. The model returns the cheapest SET of
+            # additions that together reach the count, so every one of them is
+            # required. "Cheapest gap" used to head this list and read as a menu.
+            total = sum(s.cost_to_close or 0 for s in shortfalls)
+            tail = (
+                f". All {len(shortfalls)} of these are needed together, not instead of "
+                f"each other, for {total} coins in total"
+            )
         return ShortfallDiagnosis(
             mode="supply",
             blocking=[],
@@ -636,16 +656,30 @@ def _diagnose(
     if not requirements:
         return _supply_or_unexplained(search, target_count, [], probe_budget, True)
 
-    # Singles.
-    for index, requirement in enumerate(requirements):
-        reduced = requirements[:index] + requirements[index + 1 :]
-        if search.feasible(target_count, reduced, probe_budget):
-            return ShortfallDiagnosis(
-                mode="requirement",
-                blocking=[_describe(requirement)],
-                contributions=[],
-                explanation=_describe(requirement),
+    # Singles. EVERY one that unblocks on its own, not the first found: two
+    # requirements can each be independently sufficient to fix, and reporting one
+    # sends the reader to clear it and come back to the same wall.
+    singles = [
+        requirement
+        for index, requirement in enumerate(requirements)
+        if search.feasible(
+            target_count, requirements[:index] + requirements[index + 1 :], probe_budget
+        )
+    ]
+    if singles:
+        names = [_describe(r) for r in singles]
+        explanation = (
+            names[0]
+            if len(names) == 1
+            else (
+                ", ".join(names[:-1])
+                + f" or {names[-1]}. Each of these blocks it on its own, so removing ANY "
+                f"one unblocks squad {target_count}"
             )
+        )
+        return ShortfallDiagnosis(
+            mode="requirement", blocking=names, contributions=[], explanation=explanation
+        )
 
     # Pairs. Bounded, because the number of pairs grows quadratically and a real
     # SBC with twenty requirements would spend the whole budget here.

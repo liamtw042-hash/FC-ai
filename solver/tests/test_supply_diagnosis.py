@@ -71,3 +71,14 @@ class TestTheWording:
         assert shortfalls[0].describe(8) == (
             "8 squads need 32 cards rated 86, you have 25, add 7"
         )
+
+
+class TestAShortfallWithNoRating:
+    def test_it_says_cards_not_cards_rated_zero(self):
+        # rating None means the challenge has no rating requirement, so the
+        # shortfall is in cards generally. It used to render as "cards rated 0".
+        pool = cards(84, 15, 100)
+        (shortfall,) = _supply_diagnosis(pool, None, 2)
+        assert shortfall.rating is None
+        assert shortfall.describe(2) == "2 squads need 22 cards, you have 15, add 7"
+        assert "rated 0" not in shortfall.describe(2)
