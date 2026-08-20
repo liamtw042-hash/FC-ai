@@ -79,11 +79,26 @@ class TestThePlannerDoesNotCallIgnoranceGoodNews:
         # This is the one that mattered: an empty plan used to render as
         # "Nothing left to unlock by buying: the queue is fully fed", which is a
         # flatly false statement produced by a timeout.
-        plan = GrindPlan(baseline={}, steps=[], supply_limited=[], blocks=[], baseline_failed=True)
-        summary = plan.summary()
-        assert "NO PLAN" in summary
-        assert "fully fed" not in summary
-        assert "not the same as there being nothing to buy" in summary
+        #
+        # WHICH kind of failure has to be stated. This test originally set
+        # baseline_failed alone and asserted the timeout wording, which was an
+        # assumption rather than a construction. The sweep split the two, so both
+        # are built explicitly here.
+        timed_out = GrindPlan(
+            baseline={}, steps=[], supply_limited=[], blocks=[],
+            baseline_failed=True, baseline_timed_out=True,
+        )
+        assert "NO PLAN" in timed_out.summary()
+        assert "fully fed" not in timed_out.summary()
+        assert "not the same as there being nothing to buy" in timed_out.summary()
+
+        infeasible = GrindPlan(
+            baseline={}, steps=[], supply_limited=[], blocks=[],
+            baseline_failed=True, baseline_timed_out=False,
+        )
+        assert "NO PLAN" in infeasible.summary()
+        assert "fully fed" not in infeasible.summary()
+        assert "not for want of time" in infeasible.summary()
 
     def test_a_step_search_that_stopped_early_says_UNKNOWN_rather_than_nothing(self):
         plan = GrindPlan(

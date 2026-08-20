@@ -91,7 +91,19 @@ class ItemOutcome:
         if self.complete:
             return f"{head}, {self.cost} cost"
         reason = self.diagnosis.explanation if self.diagnosis else "no diagnosis available"
-        return f"{head}. Squad {self.achieved + 1} blocked by {reason}"
+        line = f"{head}. Squad {self.achieved + 1} blocked by {reason}"
+        # ONE DEPTH IS NOT THE CHALLENGE. The diagnosis is about the NEXT squad
+        # and nothing else. A requirement that blocks squad 4 need not block squad
+        # 7, and a contention at squad 4 says nothing about whether squad 7 would
+        # have been supply blocked anyway. Silence about the rest reads as "and
+        # the same goes for all of them", which was never checked.
+        remaining = self.item.count - self.achieved
+        if remaining > 1:
+            line += (
+                f". Squads {self.achieved + 2} to {self.item.count} were NOT probed "
+                f"separately, so what blocks them is unknown rather than the same thing"
+            )
+        return line
 
 
 class QueueOutcome:

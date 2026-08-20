@@ -319,6 +319,7 @@ class GrindPlan:
         blocks: list[RequirementBlock],
         supply_ceiling: dict[str, int] | None = None,
         baseline_failed: bool = False,
+        baseline_timed_out: bool = False,
         steps_truncated: bool = False,
         steps_probed: int = 0,
         steps_requested: int = 0,
@@ -336,6 +337,9 @@ class GrindPlan:
         # unlock: the queue is fully fed", which is a flatly false statement
         # produced by a timeout.
         self.baseline_failed = baseline_failed
+        # True when the baseline ran out of time, False when it was PROVED
+        # impossible. Only meaningful alongside baseline_failed.
+        self.baseline_timed_out = baseline_timed_out
         # The purchase step search stopped early. It looks `steps_requested` squads
         # ahead and got `steps_probed`, and silence about the difference reads as
         # "there is nothing further", which is a claim it never checked.
@@ -358,11 +362,18 @@ class GrindPlan:
 
     def summary(self) -> str:
         if self.baseline_failed:
+            if self.baseline_timed_out:
+                return (
+                    "NO PLAN. The planner could not solve its own baseline model inside "
+                    "its time budget, so it does not know what the club can feed and has "
+                    "nothing to say about buying. This is not the same as there being "
+                    "nothing to buy. Raise the planner's time budget."
+                )
             return (
-                "NO PLAN. The planner could not solve its own baseline model inside its "
-                "time budget, so it does not know what the club can feed and has nothing "
-                "to say about buying. This is not the same as there being nothing to buy. "
-                "Raise the planner's time budget."
+                "NO PLAN, and not for want of time: the baseline model is INFEASIBLE, so "
+                "this queue cannot be fed at all in its current shape. That is a fact "
+                "about the club and the challenges, not about the budget, and raising the "
+                "budget will not change it."
             )
 
         lines: list[str] = []
@@ -614,13 +625,24 @@ def plan_grind(
     sentinel = (max(priced_values) * 100 + 1) if priced_values else 1
     weight = {r: (unit[r] if unit[r] is not None else sentinel) for r in ratings}
 
+    # Why a solve failed, for the last call to `solve`. INFEASIBLE and UNKNOWN
+    # both came back as None, so "could not solve inside its time budget" was
+    # printed for a model that was proved impossible in a millisecond. One of the
+    # two is the planner's ignorance and the other is a fact about the club, and
+    # they need different sentences.
+    last_status: dict[str, int] = {}
+
     def solve(model, objective_is_max: bool, *, extra: tuple | None = None):
         solver = cp_model.CpSolver()
         solver.parameters.max_time_in_seconds = time_budget_seconds
         status = solver.Solve(model)
+        last_status["status"] = status
         if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
             return None
         return solver
+
+    def timed_out() -> bool:
+        return last_status.get("status") == cp_model.UNKNOWN
 
     # Baseline: nothing bought, as many squads as the club can feed. Priority
     # weights decide which challenges win the scarce cards.
@@ -629,9 +651,10 @@ def plan_grind(
     solver = solve(model, True)
     if solver is None:
         # Its own baseline model did not solve. Reported as ignorance, not as
-        # "nothing to buy".
+        # "nothing to buy", and WHICH kind of failure it was is carried through.
         return GrindPlan(
             baseline={}, steps=[], supply_limited=[], blocks=[], baseline_failed=True,
+            baseline_timed_out=timed_out(),
         )
     ceiling = {c.name: solver.Value(squads[c.name]) for c in challenges}
 
@@ -730,9 +753,11 @@ def plan_grind(
         model.Minimize(sum(add[r] * weight[r] for r in ratings))
         step_solver = solve(model, False)
         if step_solver is None:
-            # Out of time, or this target is genuinely unreachable. Either way the
-            # steps beyond here were never looked at, and the plan says so.
-            truncated = target <= total_requested
+            # A step that timed out leaves the ones past it unlooked at. A step
+            # that is INFEASIBLE means no purchase reaches that many squads, and
+            # neither will any deeper one, so there is nothing further to say and
+            # nothing was skipped.
+            truncated = timed_out() and target <= total_requested
             break
 
         purchases = [

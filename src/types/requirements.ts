@@ -51,6 +51,61 @@ export type Requirement =
 
 export type RequirementType = Requirement['type']
 
+/**
+ * Every type the union holds, as VALUES rather than as a type.
+ *
+ * The union is checked at compile time and requirements arrive at RUNTIME, from
+ * a pasted SBC, a JSON file or an HTTP body. `validateSquad` switches on the
+ * type, and TypeScript proves that switch exhaustive over the union, which is
+ * not the same as it being exhaustive over what actually turns up. A type the
+ * union does not hold used to fall off the end of the switch and come back as
+ * `undefined` in a list of results.
+ *
+ * The `satisfies` clause is what keeps this honest: add a member to the union
+ * without adding it here and the build fails.
+ */
+export const REQUIREMENT_TYPES = [
+  'squadSize',
+  'teamRating',
+  'teamChemistry',
+  'perPlayerChemistry',
+  'playersFromLeague',
+  'playersFromNation',
+  'playersFromClub',
+  'sameLeagueCount',
+  'sameNationCount',
+  'sameClubCount',
+  'distinctLeagues',
+  'distinctNations',
+  'distinctClubs',
+  'rareCount',
+  'totwCount',
+  'cardTypeCount',
+  'promoCount',
+  'qualityCount',
+  'minPlayerRating',
+  'maxPlayerRating',
+  'specificPlayer',
+  'specificPosition',
+  'formation',
+  'excludeEvolved',
+  'managerNation',
+  'managerLeague',
+] as const satisfies readonly RequirementType[]
+
+/**
+ * The half `satisfies` does not do. `satisfies` proves every entry above IS a
+ * requirement type; this proves every requirement type is ABOVE. Drop a member
+ * from the list and `Exclude` stops being `never`, so this line stops compiling.
+ */
+type MissingFromList = Exclude<RequirementType, (typeof REQUIREMENT_TYPES)[number]>
+const _everyRequirementTypeIsListed: MissingFromList extends never ? true : false = true
+void _everyRequirementTypeIsListed
+
+export function isKnownRequirementType(type: string): type is RequirementType {
+  return (REQUIREMENT_TYPES as readonly string[]).includes(type)
+}
+
 /** Result of checking one requirement against a built squad. */
 export interface RequirementResult {
   requirement: Requirement

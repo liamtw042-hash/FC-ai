@@ -54,9 +54,24 @@ export async function POST(request: Request): Promise<NextResponse> {
     })
   }
 
+  // Every item's pool was built from the same state() in this same request, so
+  // they are identical by construction and the first one is THE pool rather than
+  // one of several. Asserted rather than assumed, because "the first of many" is
+  // exactly the reduction that keeps producing bugs here.
   const first = definitions[0]
   if (first === undefined) {
     return NextResponse.json({ error: 'nothing in the queue' }, { status: 400 })
+  }
+  const poolSize = first.prepared.pool.cards.length
+  if (definitions.some((entry) => entry.prepared.pool.cards.length !== poolSize)) {
+    return NextResponse.json(
+      {
+        error:
+          'the queue items were prepared against different pools, which should be ' +
+          'impossible in one request. Nothing was solved.',
+      },
+      { status: 500 },
+    )
   }
 
   let response: WireQueueResponse

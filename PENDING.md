@@ -1,10 +1,31 @@
 # PENDING.md
 
-Everything that needs the owner. Nothing here blocks the build: every unverified value has a
-best supported implementation in place, marked `verified: false` in the data and surfaced in
-the startup warning.
+Everything that needs the owner.
+
+**P-003 BLOCKS CHECKPOINTS 2 AND 13, WHICH IS THE WHOLE INTAKE PATH.** Without a FutDB key
+there is no real player database, and without a real player database there is nothing for
+screenshot OCR to match names against. That is not a rule value waiting on a reading, it is
+a signup, and until it happens the only way cards get into this tool is a CSV you produce
+yourself. Everything downstream of intake, the solver, the cost model, the grind planner and
+the whole UI, runs today against `data/sample/`, which is synthetic and is evidence about
+the pipeline only.
+
+**The other seven block nothing.** Every unverified rule value has a best supported
+implementation in place, marked `verified: false` in the data and surfaced in the startup
+warning and on every page of the UI. A wrong one changes returned squads, which is why they
+are listed at all, but none of them stops anything running.
 
 Cleared in batches. Status is `open` until a reading comes back.
+
+| Ref | Blocks | Needs |
+|---|---|---|
+| **P-003** | **checkpoints 2 and 13, the entire intake path** | a free FutDB signup |
+| P-001 | nothing. Wrong means every rating target shifts | the game, Concept Squad only |
+| P-002 | nothing. Wrong means FoF Captains are mis-scored | the game, one squad with a Captain |
+| P-004 | nothing. Wrong means one formation scores 0 chemistry | game data, or a reading |
+| P-005 | nothing. Wrong means club and league links are mis-scored | the game, two Concept Squads |
+| P-006 | nothing. Wrong means nation links are mis-scored | the game, one Concept Squad |
+| P-007, P-008 | nothing. Both are the top step of a ladder | the game, two Concept Squads |
 
 ---
 

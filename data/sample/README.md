@@ -11,6 +11,13 @@ database nothing downstream of it can be run at all, so this stands in for one
 while that stays blocked. It is enough to exercise the cost model, the rating
 enumerator, the solver, the grind planner and the whole command line end to end.
 
+**A result on this data is evidence about the PIPELINE and nothing else.** It says
+a path runs, returns, and returns something the rules engine agrees with. It says
+nothing about how fast the solver is on a real club, and nothing about whether a
+real SBC is solvable from a real club: the rating distribution, the league and
+nation spread and the prices here were all chosen by a generator, and each of them
+is exactly what those questions turn on.
+
 | File | What it is |
 |---|---|
 | `cards.csv` | 445 card definitions, ratings 75 to 91 |

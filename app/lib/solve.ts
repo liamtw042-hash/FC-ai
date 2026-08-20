@@ -61,6 +61,12 @@ export interface SquadView {
   chemistry: number
   cost: number
   players: {
+    /**
+     * The owned stack this came from. Carried because the submission write back
+     * has to take the RIGHT stack out of the club, and name plus rating does not
+     * identify one: a base gold and a special card can share both.
+     */
+    cardId: string
     slot: string
     rating: number
     name: string
@@ -96,6 +102,7 @@ export function view(
     players: rebuilt.squad.players.map((player, index) => {
       const placement = squad.placements.find((entry) => entry.slot_index === player.slotIndex)
       return {
+        cardId: player.card.owned.id,
         slot: slots[player.slotIndex] ?? player.slotPosition,
         rating: player.card.definition.rating,
         name: player.card.definition.name,
