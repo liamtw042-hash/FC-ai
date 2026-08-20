@@ -24,6 +24,22 @@ auto SBC feature this tool deliberately does not have.
 by `npm run quickstart`, which runs the page top to bottom and fails if the last
 step does not come back with ten of ten.
 
+## The test split, before you run anything
+
+`npm test` is the TypeScript side and takes seconds. The Python side has two
+commands and the difference matters:
+
+| Command | What it runs | Roughly |
+|---|---|---|
+| `npm run solver:test:fast` | everything not marked `@pytest.mark.slow` | seconds |
+| `npm run solver:test` | the whole suite | ten minutes |
+
+The slow tests are real CP-SAT searches over real pools, and they are slow because
+the thing they test is slow. **The fast split is not a substitute for the full
+one:** repeat, set and queue mode are exercised almost entirely in the slow tests,
+so the full suite is what has to pass before a merge. Use the fast one while
+editing.
+
 ## Status
 
 Checkpoints 1 and 3 to 12 are done: the rules engine, the ground truth harness,
@@ -129,17 +145,6 @@ npx tsx scripts/fcai.ts solve "eighty five" --repeat 10 --time 180
 ```
 
 `QUICKSTART.md` explains what each of those prints and why.
-
-### The test split
-
-`npm run solver:test` runs the whole Python suite, which is around ten minutes:
-most of it is real CP-SAT searches over real pools, and they are slow because the
-thing they are testing is slow. `npm run solver:test:fast` skips everything marked
-`@pytest.mark.slow` and finishes in seconds, which is the one to use while
-editing. **The fast split is not a substitute for the full one**: the slow tests
-are where repeat, set and queue mode are actually exercised, so the full suite is
-what has to pass before a merge. `npm test`, the TypeScript side, is seconds
-either way.
 
 ## Conventions
 
