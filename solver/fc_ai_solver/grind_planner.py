@@ -493,7 +493,12 @@ def _diagnose_depths(
 
     depths: list[DepthBlock] = []
     for depth in range(achieved + 1, probe_to + 1):
-        diagnosis = _diagnose(search, depth, requirements, budget)
+        # Only the first depth's explanation is printed. The rest contribute
+        # their mode to the requirement and supply spans, so they do not pay for
+        # the club limit bisection.
+        diagnosis = _diagnose(
+            search, depth, requirements, budget, with_limits=depth == achieved + 1
+        )
         depths.append(DepthBlock(depth, diagnosis.mode, diagnosis.explanation))
 
     supply_depths = [d.depth for d in depths if d.mode == "supply"]

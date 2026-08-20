@@ -130,6 +130,15 @@ class SolveRequest(BaseModel):
     time_budget_seconds: float = 5.0
     # Reproducibility. CP-SAT is deterministic for a fixed worker count.
     workers: int = 8
+    # On failure, run the checkpoint 12 diagnosis and put its answer in `reason`.
+    # Default ON: "no squad in the available pool satisfies these requirements" is
+    # exactly the shrug that diagnosis exists to replace, and a caller who wants
+    # the shrug back can ask for it.
+    diagnose_on_failure: bool = True
+    diagnosis_budget_seconds: float = 10.0
+    # Impossible for everyone, from the rules engine's detectConflicts. Passed
+    # through, never derived here: this service holds no game rules.
+    universal_conflicts: list[str] = Field(default_factory=list)
 
 
 class PlacedCard(BaseModel):

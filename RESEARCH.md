@@ -767,6 +767,61 @@ requirement**, otherwise a pin and a large K are contradictory and the search re
 exhausted when it is only over constrained. Running out is reported honestly, "Only 1 of 5
 found", not as a failure. Count is capped at 20.
 
+### 8.6 Checkpoint 12: impossibility diagnosis, folded in rather than added beside
+
+No fourth path. `diagnose_impossibility` is a front door onto the requirement, pair,
+supply and depth machinery that repeat mode, set mode, queue mode and the grind planner
+already share. Three things were added, and all three live inside that machinery so every
+caller gets them.
+
+**Binding constraint identification, with the number.** Naming the requirement is half an
+answer. "min 9 from Serie A blocks this" leaves the reader to work out whether they are one
+card short or five. Every mode that names a requirement now carries a `ClubLimit`: the
+tightest value this club could actually meet with every other requirement still in force,
+found by bisection against the real pool. "Your club can manage at best 6, 3 short of the 9
+asked for."
+
+The old code loosened by 1, 2 and 3 and gave up, which answers "is it close" but never "how
+far". The span is found by **doubling first, then bisecting**, the same idiom as
+`largest_feasible`, rather than from a formula. A formula would have to know what the value
+means: `max 3` on a league count loosens toward eleven, `max 84` on a player rating loosens
+toward ninety nine, and that difference is a game rule this service is not allowed to hold.
+Doubling until it works needs to know nothing. The ceiling comes from the data, the highest
+rating in the club, not from a rule.
+
+**The minimal blocking set.** Singles find one blocker, pairs find two, and an SBC whose
+requirements only conflict three at a time fell off the end of both and came back as
+unexplained. A deletion filter walks the list once, dropping any requirement the problem
+stays infeasible without, in `|R|` checks rather than the pair search's `|R|` squared.
+
+**The two are not the same kind of statement, and the wording says so.** Singles and pairs
+report a set whose REMOVAL unblocks the squad. The deletion filter returns a set that is
+INFEASIBLE ON ITS OWN and minimally so. Removing one member of a minimal infeasible set
+makes that subset feasible, but the whole challenge can still fail on a second conflict. So
+the sentence is "these three conflict with each other against your club, no proper subset
+of them is impossible, dropping any single one settles THIS conflict, though the challenge
+may still fail on another", and not the stronger claim the filter never checked.
+
+The filter also detects for free that the requirements are not the cause: if the problem is
+still infeasible with every requirement removed, it returns nothing and the diagnosis falls
+through to supply, where it belongs. When it does, the unexplained text is upgraded from
+"no requirement loosened by up to 3 unblocks it" to "removing EVERY requirement does not
+unblock it either, so the requirements are RULED OUT rather than merely unproven".
+
+**Universal conflicts stay on the TypeScript side.** A contradiction between requirements is
+a fact about the SBC and true for everyone; `detectConflicts` decides that, and the answer
+is passed in as a list of sentences. When it is non empty the club is never consulted at
+all, because telling someone their club is short of Serie A cards for an SBC nobody could
+build sends them shopping for nothing. The Python service does not and must not derive it.
+
+**The single solve stopped shrugging.** `SolveResponse.reason` on an infeasible single solve
+was "no squad in the available pool satisfies these requirements", which is precisely the
+sentence this checkpoint exists to replace. It now carries the diagnosis. Two guards: a
+diagnosis that throws degrades to the old sentence plus the error rather than turning a
+clean infeasible into a crash, and a diagnosis that comes back SOLVABLE, which can happen
+because it does not enforce pins or exclusions, says the limit is in the pins, the
+exclusions or the exact rating multiset rather than printing two contradictory sentences.
+
 ## 9. Still open
 
 | Ref | Item | Status |

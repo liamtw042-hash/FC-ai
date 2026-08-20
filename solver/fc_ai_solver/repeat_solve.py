@@ -258,14 +258,78 @@ class SupplyShortfall:
         )
 
 
+class ClubLimit:
+    """One requirement, what it asked for, and the best this club can really do.
+
+    NAMING THE REQUIREMENT IS HALF AN ANSWER. "min 5 players from Serie A blocks
+    this" leaves the reader to work out whether they are one card short or five,
+    and whether buying is the fix or the SBC is simply out of reach. So the value
+    is bisected against the real pool with every other requirement still in force:
+    the answer is the tightest value this club could actually meet.
+
+    `reachable` is False when no value works, not even a vacuous one. That means
+    the requirement is named because it participates, not because it is the whole
+    story, and the explanation says so instead of quoting a misleading number.
+    """
+
+    def __init__(
+        self,
+        requirement: Requirement,
+        name: str,
+        asked: int | None,
+        best: int | None,
+        reachable: bool,
+    ) -> None:
+        self.requirement = requirement
+        self.name = name
+        self.asked = asked
+        # The tightest value the club can meet. For a `min` that is the largest
+        # value still satisfiable; for a `max`, the smallest.
+        self.best = best
+        self.reachable = reachable
+
+    @property
+    def gap(self) -> int | None:
+        if self.asked is None or self.best is None:
+            return None
+        return abs(self.asked - self.best)
+
+    def describe(self) -> str:
+        if self.asked is None:
+            return f"{self.name}: no numeric value, so there is no gap to quote"
+        if not self.reachable:
+            return (
+                f"{self.name}: removing it outright does not unblock this either, so it "
+                f"is part of the answer rather than all of it"
+            )
+        if self.best is None:
+            return (
+                f"{self.name}: removing it unblocks this, but no loosening of its value "
+                f"within range does"
+            )
+        if self.gap == 0:
+            return (
+                f"{self.name}: your club meets this as written, so it is named for what "
+                f"it does in combination, not on its own"
+            )
+        direction = "at most" if self.requirement.op == "max" else "at best"
+        return (
+            f"{self.name}: your club can manage {direction} {self.best}, "
+            f"{self.gap} short of the {self.asked} asked for"
+        )
+
+
 class ShortfallDiagnosis:
     """Why squad M+1 could not be built.
 
-    THREE MODES, IN ORDER, AND THE MODE IS PART OF THE ANSWER.
+    THE MODES, IN ORDER, AND THE MODE IS PART OF THE ANSWER.
 
       requirement       one requirement blocks it, found by removing it
       requirement_pair  two together block it, and neither alone does
+      requirement_set   three or more together, found by deletion filter, and
+                        minimal: no proper subset of them is infeasible
       supply            no requirement is at fault. The club is short of cards
+      contention        queue only. Buildable alone, outbid here
       unexplained       none of the above. Says so rather than guessing
 
     Single removal only ever finds single blockers, and the realistic case on a
@@ -285,6 +349,7 @@ class ShortfallDiagnosis:
         contributions: list[tuple[str, int | None]],
         explanation: str,
         supply: list[SupplyShortfall] | None = None,
+        limits: list[ClubLimit] | None = None,
     ) -> None:
         self.mode = mode
         # The smallest subset whose removal unblocks the next squad. One or two
@@ -296,10 +361,18 @@ class ShortfallDiagnosis:
         self.explanation = explanation
         # Ratings the club is short of, cheapest gap to close first.
         self.supply = supply or []
+        # For each named requirement, the best this club can actually do against
+        # it. "min 5 from Serie A" with three Serie A cards in the club is a
+        # different conversation from one with four.
+        self.limits = limits or []
 
     @property
     def subset_size(self) -> int | None:
         return len(self.blocking) if self.blocking else None
+
+    @property
+    def is_requirement_mode(self) -> bool:
+        return self.mode in ("requirement", "requirement_pair", "requirement_set")
 
 
 class RepeatOutcome:
@@ -651,6 +724,7 @@ def _supply_or_unexplained(
     requirements: list[Requirement],
     probe_budget: float,
     pairs_searched: bool,
+    requirements_ruled_out: bool = False,
 ) -> ShortfallDiagnosis:
     """Supply first, because a requirement named for a supply problem misleads."""
     avoided: list[int] = []
@@ -695,14 +769,20 @@ def _supply_or_unexplained(
             supply=shortfalls,
         )
 
-    if not requirements:
+    if not requirements or requirements_ruled_out:
+        ruled_out = (
+            " Removing EVERY requirement does not unblock it either, so the requirements "
+            "are ruled out rather than merely unproven."
+            if requirements_ruled_out and requirements
+            else ""
+        )
         return ShortfallDiagnosis(
             mode="unexplained",
             blocking=[],
             contributions=[],
             explanation=(
                 "the pool, though it holds enough cards at every rating. Something "
-                "about how they combine is the limit"
+                f"about how they combine is the limit.{ruled_out}"
             ),
         )
 
@@ -739,12 +819,136 @@ def _supply_or_unexplained(
     )
 
 
+def _club_limit(
+    search: _Search,
+    target_count: int,
+    requirements: list[Requirement],
+    requirement: Requirement,
+    probe_budget: float,
+) -> ClubLimit:
+    """The tightest value of `requirement` this club can meet, everything else held.
+
+    Bisection, not a fixed probe range. The old code loosened by 1, 2 and 3 and
+    gave up, which answers "is it close" but never "how far". On a club three
+    Serie A cards deep asked for eight, "loosening by up to 3 does not help" is
+    true and useless; "your club can manage 3, five short of the 8 asked for" is
+    the same fact with the number the reader needs in it.
+
+    The span is found by DOUBLING first, the same idiom as `largest_feasible`,
+    rather than from a formula. A formula needs to know what the value means: a
+    `max 3` on a league count loosens toward eleven, a `max 84` on a player rating
+    loosens toward ninety nine, and the difference is a game rule this service is
+    not allowed to hold. Doubling until it works needs to know nothing.
+    """
+    name = _describe(requirement)
+    others = [r for r in requirements if r is not requirement]
+    if requirement.value is None:
+        return ClubLimit(requirement, name, None, None, False)
+
+    # If removing it outright does not unblock, no loosening of it can, and this
+    # requirement is part of the answer rather than all of it. One solve settles it.
+    if not search.feasible(target_count, others, probe_budget):
+        return ClubLimit(requirement, name, requirement.value, None, False)
+
+    def satisfiable(by: int) -> bool:
+        loosened = _relaxed(requirement, by)
+        if loosened is None:
+            # Loosened past vacuous, which is the same as not being there.
+            return True
+        return search.feasible(target_count, [loosened, *others], probe_budget)
+
+    if satisfiable(0):
+        # The requirement is met as written, so it is named for taking part in a
+        # combination rather than for its own value.
+        return ClubLimit(requirement, name, requirement.value, requirement.value, True)
+
+    # A ceiling from the data, not from what the value is taken to mean: no value
+    # past the highest rating in the club or the squad size can still bind.
+    highest = max((card.rating for card in search.pool), default=0)
+    ceiling = max(SQUAD_SIZE, highest, requirement.value) + 1
+
+    low, high = 0, 1
+    while high <= ceiling and not satisfiable(high):
+        low, high = high, high * 2
+    if high > ceiling:
+        # Removing it works but no loosening within range does. Rare, and worth
+        # saying plainly rather than quoting a number that is not there.
+        return ClubLimit(requirement, name, requirement.value, None, True)
+
+    while low + 1 < high:
+        middle = (low + high) // 2
+        if satisfiable(middle):
+            high = middle
+        else:
+            low = middle
+    best = (
+        requirement.value + high if requirement.op == "max" else requirement.value - high
+    )
+    return ClubLimit(requirement, name, requirement.value, best, True)
+
+
+def _minimal_blocking_set(
+    search: _Search,
+    target_count: int,
+    requirements: list[Requirement],
+    probe_budget: float,
+) -> list[Requirement] | None:
+    """The smallest set of requirements that is still infeasible on its own.
+
+    A DELETION FILTER, which is the generalisation the singles and pairs ladder
+    was missing. Singles find one blocker, pairs find two, and a real SBC with
+    three requirements that only conflict together fell off the end of both and
+    got reported as unexplained. The filter walks the list once, dropping any
+    requirement the problem stays infeasible without, and what survives is a
+    minimal infeasible subset: every member matters, no proper subset is
+    infeasible. |R| feasibility checks, cheaper than the pair search it follows.
+
+    NOTE THE DIFFERENCE IN KIND. Singles and pairs report a set whose REMOVAL
+    unblocks the squad. This returns a set that is INFEASIBLE ON ITS OWN. Removing
+    one member of it makes that subset feasible, but the whole challenge can still
+    fail on a second conflict, so the wording downstream says exactly that and no
+    more.
+
+    Returns None when the requirements are not the cause at all, which the filter
+    detects for free: if the problem is still infeasible with EVERY requirement
+    removed, no subset of them explains anything.
+    """
+    if not search.feasible(target_count, [], probe_budget):
+        return None
+
+    kept = list(requirements)
+    for candidate in list(requirements):
+        trial = [r for r in kept if r is not candidate]
+        if not search.feasible(target_count, trial, probe_budget):
+            kept = trial
+    return kept or None
+
+
 def _diagnose(
-    search: _Search, target_count: int, requirements: list[Requirement], probe_budget: float
+    search: _Search,
+    target_count: int,
+    requirements: list[Requirement],
+    probe_budget: float,
+    *,
+    with_limits: bool = True,
 ) -> ShortfallDiagnosis:
-    """Why squad `target_count` cannot be built. Singles, pairs, supply, honesty."""
+    """Why squad `target_count` cannot be built.
+
+    Singles, pairs, minimal set, supply, honesty. Every mode that names a
+    requirement also carries what the club can really do against it, because a
+    named requirement without a number is half an answer.
+    """
     if not requirements:
         return _supply_or_unexplained(search, target_count, [], probe_budget, True)
+
+    def limits_for(named: list[Requirement]) -> list[ClubLimit]:
+        # Each limit is a doubling then a bisection, so a handful of solves per
+        # requirement. Worth it where the answer is read; wasted at a depth that
+        # only contributes its mode to a span. The planner probes ten depths and
+        # prints one, so it asks for limits at the one it prints.
+        if not with_limits:
+            return []
+        return [_club_limit(search, target_count, requirements, r, probe_budget) for r in named]
 
     # Singles. EVERY one that unblocks on its own, not the first found: two
     # requirements can each be independently sufficient to fix, and reporting one
@@ -767,8 +971,14 @@ def _diagnose(
                 f"one unblocks squad {target_count}"
             )
         )
+        limits = limits_for(singles)
+        detail = ". ".join(limit.describe() for limit in limits)
         return ShortfallDiagnosis(
-            mode="requirement", blocking=names, contributions=[], explanation=explanation
+            mode="requirement",
+            blocking=names,
+            contributions=[],
+            explanation=f"{explanation}. {detail}" if detail else explanation,
+            limits=limits,
         )
 
     # Pairs. Bounded, because the number of pairs grows quadratically and a real
@@ -779,18 +989,70 @@ def _diagnose(
         for first, second in combinations(range(len(requirements)), 2):
             reduced = [r for k, r in enumerate(requirements) if k not in (first, second)]
             if search.feasible(target_count, reduced, probe_budget):
-                names = [_describe(requirements[first]), _describe(requirements[second])]
+                pair = [requirements[first], requirements[second]]
+                names = [_describe(pair[0]), _describe(pair[1])]
+                limits = limits_for(pair)
+                detail = ". ".join(limit.describe() for limit in limits)
                 return ShortfallDiagnosis(
                     mode="requirement_pair",
                     blocking=names,
                     contributions=[],
                     explanation=(
                         f"{names[0]} and {names[1]} together. Neither alone is enough, "
-                        f"which is why removing one at a time finds nothing."
+                        f"which is why removing one at a time finds nothing. {detail}"
                     ),
+                    limits=limits,
                 )
 
-    return _supply_or_unexplained(search, target_count, requirements, probe_budget, pairs_searched)
+    # Three or more together. The deletion filter generalises the ladder above
+    # rather than sitting beside it: it returns a MINIMAL infeasible subset, so a
+    # three way conflict that singles and pairs both walk past is named exactly,
+    # and a shortfall with no requirement in it at all comes back as None and
+    # falls through to supply, which is where it belongs.
+    minimal = _minimal_blocking_set(search, target_count, requirements, probe_budget)
+    if minimal is not None:
+        names = [_describe(r) for r in minimal]
+        limits = limits_for(minimal)
+        detail = ". ".join(limit.describe() for limit in limits)
+        # Size decides the mode, because the filter also covers the one and two
+        # requirement cases when the pair search was skipped for being too wide.
+        mode = {1: "requirement", 2: "requirement_pair"}.get(len(names), "requirement_set")
+        if len(names) == 1:
+            head = names[0]
+        elif len(names) == 2:
+            head = (
+                f"{names[0]} and {names[1]} together. Neither alone is enough, which is "
+                f"why removing one at a time finds nothing"
+            )
+        else:
+            # PRECISION MATTERS HERE. The singles and pairs above report a set
+            # whose REMOVAL unblocks the squad. What the deletion filter returns
+            # is a different thing: a set that is infeasible ON ITS OWN and
+            # minimally so. Dropping any one member breaks THIS conflict, but the
+            # challenge can still fail on another one, and saying "dropping any of
+            # these unblocks it" would be a claim the filter has not checked.
+            head = (
+                f"these {len(names)} requirements CONFLICT WITH EACH OTHER against your "
+                f"club: {', '.join(names)}. No proper subset of them is impossible, so "
+                f"every one of them takes part. That is why removing them one and two at "
+                f"a time found nothing. Dropping any single one settles THIS conflict, "
+                f"though the challenge may still fail on another"
+            )
+        return ShortfallDiagnosis(
+            mode=mode,
+            blocking=names,
+            contributions=[],
+            explanation=f"{head}. {detail}" if detail else head,
+            limits=limits,
+        )
+
+    # The filter came back None, which means the problem is still infeasible with
+    # every requirement removed. The requirements are RULED OUT, not merely
+    # unproven, and saying so is stronger than listing what is closest to binding.
+    return _supply_or_unexplained(
+        search, target_count, requirements, probe_budget, pairs_searched,
+        requirements_ruled_out=True,
+    )
 
 
 def solve_repeat(
