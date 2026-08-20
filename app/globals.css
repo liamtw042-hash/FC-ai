@@ -1,0 +1,17 @@
+@import 'tailwindcss';
+
+/* Dark, function over form. Brief section 9. */
+:root {
+  color-scheme: dark;
+}
+
+body {
+  background: #0b0d10;
+  color: #d7dce3;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* A table that has to stay readable at six hundred rows beats a pretty one. */
+table {
+  border-collapse: collapse;
+}

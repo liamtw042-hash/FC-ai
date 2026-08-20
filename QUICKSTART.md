@@ -28,6 +28,10 @@ npm run solver:dev
 
 Leave that running and open a second terminal for everything below.
 
+If you would rather click than type, `npm run dev` starts the solver AND the web
+app together, and http://127.0.0.1:3000 does everything this page does. The
+commands are here because they are what `npm run quickstart` checks.
+
 ## 2. Import a card database and a club
 
 The sample data under `data/sample/` is **invented**: made up players, made up
