@@ -116,12 +116,11 @@ class TestTenEightyFiveRatedSquads:
         assert result.achieved == 7
         assert not result.complete
         assert "7 of 10 squads are achievable" in result.shortfall_reason
-        # Twenty five 86s alone would allow eight squads at three each. What stops
-        # the eighth is the interaction with the 85s: the multiset needing only
-        # three 86s wants four 85s, and there are twenty. No single requirement is
-        # at fault, and saying so is more useful than naming an innocent rule.
+        # No requirement is at fault, and the report says so with numbers rather
+        # than naming an innocent rule. See TestSupplyIsADiagnosisModeOfItsOwn.
         assert result.binding_requirement is None
-        assert "the size of the available pool" in result.shortfall_reason
+        assert result.diagnosis.mode == "supply"
+        assert "the club running out of cards, not any requirement" in result.shortfall_reason
 
 
 class TestNamingTheBindingRequirement:
@@ -306,15 +305,86 @@ class TestWhenNoSmallSubsetExplainsIt:
             allowed_rating_multisets=MULTISETS_85,
         )
         assert result.diagnosis is not None
-        if result.diagnosis.blocking:
-            # A small subset did explain it, which is a fine outcome too.
+        # Whichever mode it lands in, silence is the failure being avoided: the
+        # answer always says which kind of problem this is and gives something to
+        # act on.
+        assert result.diagnosis.mode in ("requirement", "requirement_pair", "supply", "unexplained")
+        if result.diagnosis.mode in ("requirement", "requirement_pair"):
             assert result.diagnosis.subset_size in (1, 2)
+        elif result.diagnosis.mode == "supply":
+            # This thin pool is short of cards, so supply is the honest answer and
+            # no requirement is named for it.
+            assert result.diagnosis.blocking == []
+            assert result.diagnosis.supply, "supply mode reports what to buy"
+            assert "not any requirement" in result.diagnosis.explanation
         else:
             assert "no single requirement and no pair explains it" in result.diagnosis.explanation
-            # Silence is the failure mode being avoided. Either it names what is
-            # closest to binding, or it says the pool is the limit.
-            assert (
-                "Closest to binding" in result.diagnosis.explanation
-                or "The pool is the limit" in result.diagnosis.explanation
-            )
+            assert "the club is not short of cards" in result.diagnosis.explanation
             assert result.diagnosis.contributions, "every requirement is reported on"
+
+
+class TestSupplyIsADiagnosisModeOfItsOwn:
+    """The gap subset search cannot cover.
+
+    Removing requirements one at a time, or two at a time, can only ever explain a
+    shortfall that has a requirement in it. A run can die purely on the club being
+    short of cards, and falling through to "closest to binding" there would name a
+    requirement that is not the cause. That is worse than silence, because it
+    sends the reader shopping for the wrong cards.
+    """
+
+    def test_the_seven_of_ten_case_reaches_supply_and_names_no_requirement(self):
+        result = solve_repeat(
+            short_club(), FORMATION, requested=10, allowed_rating_multisets=MULTISETS_85
+        )
+        assert result.achieved == 7
+        assert result.diagnosis is not None
+        assert result.diagnosis.mode == "supply"
+
+        # The thing that must not happen: naming a requirement for a supply problem.
+        assert result.binding_requirement is None
+        assert result.diagnosis.blocking == []
+        assert result.diagnosis.contributions == []
+
+        # And it reads as a shopping list rather than a rule.
+        assert "the club running out of cards, not any requirement" in result.shortfall_reason
+        assert "8 squads need 28 cards rated 86, you have 25, add 3" in result.shortfall_reason
+
+    def test_the_shortfall_is_reported_as_numbers_that_can_be_acted_on(self):
+        result = solve_repeat(
+            short_club(), FORMATION, requested=10, allowed_rating_multisets=MULTISETS_85
+        )
+        (shortfall,) = result.diagnosis.supply
+        assert shortfall.rating == 86
+        assert shortfall.needed == 28
+        assert shortfall.held == 25
+        assert shortfall.missing == 3
+        assert shortfall.cost_to_close == 3 * 4000
+
+    def test_a_requirement_problem_still_reports_as_a_requirement_problem(self):
+        # The mode is what tells a requirement problem from a supply one at a
+        # glance, so it has to be right on both sides.
+        pool = (
+            fodder(60, 86, 4000, "h")
+            + fodder(40, 85, 2600, "m")
+            + fodder(80, 83, 1200, "l")
+            + fodder(60, 82, 900, "x")
+            + fodder(6, 83, 1500, "totw", card_type="totw", is_totw=True, is_rare=True)
+        )
+        result = solve_repeat(
+            pool, FORMATION, requested=10,
+            requirements=[Requirement(type="totwCount", op="min", value=1)],
+            allowed_rating_multisets=MULTISETS_85,
+        )
+        assert result.diagnosis.mode == "requirement"
+        assert result.diagnosis.supply == []
+
+    def test_a_pair_problem_reports_as_a_pair(self):
+        pool = TestAPairOfRequirementsWithNeitherSufficientAlone.pool_with_two_scarce_types()
+        result = solve_repeat(
+            pool, FORMATION, requested=6,
+            requirements=TestAPairOfRequirementsWithNeitherSufficientAlone.REQUIREMENTS,
+            allowed_rating_multisets=MULTISETS_85,
+        )
+        assert result.diagnosis.mode == "requirement_pair"
+        assert result.diagnosis.supply == []

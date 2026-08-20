@@ -108,13 +108,25 @@ def solve_variable_count(
 
     model.Add(sum(built) >= min_squads)
 
+    # Lexicographic: cost first, then FEWER SQUADS.
+    #
+    # Without the second term the objective is merely indifferent when the fodder
+    # is free, so the solver may build three squads for a cost of zero and be
+    # exactly as right as building one. That surfaced as a flaky test rather than
+    # a wrong answer, which is the worst way for it to surface.
+    #
+    # Scaling the cost by max_squads + 1 makes a single coin of real cost outweigh
+    # the entire count term, so the tie break can never override a genuine price
+    # difference. It only decides ties.
+    scale = max_squads + 1
     model.Minimize(
         sum(
-            place[j][i][s] * pool[i].cost
+            place[j][i][s] * pool[i].cost * scale
             for j in range(max_squads)
             for i in range(n)
             for s in range(SQUAD_SIZE)
         )
+        + sum(built)
     )
 
     solver = cp_model.CpSolver()
@@ -172,24 +184,59 @@ def solve_variable_count(
 # ---------------------------------------------------------------------------
 
 
+class SupplyShortfall:
+    """How many cards of a rating are missing, and what closing the gap costs."""
+
+    def __init__(self, rating: int, needed: int, held: int, unit_cost: int | None) -> None:
+        self.rating = rating
+        self.needed = needed
+        self.held = held
+        self.unit_cost = unit_cost
+
+    @property
+    def missing(self) -> int:
+        return max(0, self.needed - self.held)
+
+    @property
+    def cost_to_close(self) -> int | None:
+        return None if self.unit_cost is None else self.missing * self.unit_cost
+
+    def describe(self, count: int) -> str:
+        return (
+            f"{count} squads need {self.needed} cards rated {self.rating}, "
+            f"you have {self.held}, add {self.missing}"
+        )
+
+
 class ShortfallDiagnosis:
     """Why squad M+1 could not be built.
 
-    Single requirement removal only ever finds single blockers. The realistic case
-    on a run of ten is a COMBINATION: no one removal gets the next squad through,
-    but two together do. Reporting "no blocker found" there is worse than useless,
-    because it is exactly the case worth explaining.
+    THREE MODES, IN ORDER, AND THE MODE IS PART OF THE ANSWER.
 
-    So: singles, then pairs, and if neither explains it, say so plainly and report
-    how far each requirement is from binding rather than going quiet.
+      requirement       one requirement blocks it, found by removing it
+      requirement_pair  two together block it, and neither alone does
+      supply            no requirement is at fault. The club is short of cards
+      unexplained       none of the above. Says so rather than guessing
+
+    Single removal only ever finds single blockers, and the realistic case on a
+    long run is a combination. But subset search over REQUIREMENTS cannot explain
+    a shortfall that has no requirement in it at all: a run can die purely on the
+    club running out of cards at some rating, and falling through to "closest to
+    binding" would then name a requirement that is not the cause. That is worse
+    than silence, because it sends the reader shopping for the wrong cards.
+
+    So supply is checked after subsets fail and before anything is blamed.
     """
 
     def __init__(
         self,
+        mode: str,
         blocking: list[str],
         contributions: list[tuple[str, int | None]],
         explanation: str,
+        supply: list[SupplyShortfall] | None = None,
     ) -> None:
+        self.mode = mode
         # The smallest subset whose removal unblocks the next squad. One or two
         # entries, or empty when no small subset explains it.
         self.blocking = blocking
@@ -197,6 +244,8 @@ class ShortfallDiagnosis:
         # or None when no relaxation within the probe range helps.
         self.contributions = contributions
         self.explanation = explanation
+        # Ratings the club is short of, cheapest gap to close first.
+        self.supply = supply or []
 
     @property
     def subset_size(self) -> int | None:
@@ -420,22 +469,158 @@ class _Search:
         return low, best_solve
 
 
+def _supply_diagnosis(
+    pool: list[PoolCard],
+    multisets: list[dict[int, int]] | None,
+    count: int,
+) -> list[SupplyShortfall]:
+    """Which ratings the club runs out of at this count, and by how many.
+
+    Solved as a tiny relaxed model: pick how many squads take each allowed rating
+    multiset, allowing cards to be conjured, and minimise the COST of conjuring
+    them. Everything else is dropped, so what comes back is a statement about the
+    club's contents and nothing else.
+
+    Minimising cost rather than card count matters: three cards rated 86 and
+    twelve rated 85 can both close the same gap, and which one to go and buy
+    depends on what they cost, not on how many there are.
+    """
+    held: dict[int, int] = defaultdict(int)
+    cheapest: dict[int, int] = {}
+    for card in pool:
+        held[card.rating] += card.quantity
+        if card.rating not in cheapest or card.cost < cheapest[card.rating]:
+            cheapest[card.rating] = card.cost
+
+    if not multisets:
+        # No rating constraint, so the only supply question is whether there are
+        # enough cards at all.
+        total = sum(held.values())
+        needed = count * SQUAD_SIZE
+        if total >= needed:
+            return []
+        return [SupplyShortfall(rating=0, needed=needed, held=total, unit_cost=None)]
+
+    ratings = sorted({r for combo in multisets for r in combo})
+    # A rating the club has none of still has a price, or the report cannot say
+    # what closing the gap costs. The dearest known card is the conservative stand in.
+    fallback = max(cheapest.values()) if cheapest else 1
+    unit = {r: cheapest.get(r, fallback) for r in ratings}
+
+    model = cp_model.CpModel()
+    take = [model.NewIntVar(0, count, f"take_{k}") for k in range(len(multisets))]
+    model.Add(sum(take) == count)
+    add = {r: model.NewIntVar(0, count * SQUAD_SIZE, f"add_{r}") for r in ratings}
+    used = {}
+    for r in ratings:
+        total_used = sum(take[k] * multisets[k].get(r, 0) for k in range(len(multisets)))
+        usage = model.NewIntVar(0, count * SQUAD_SIZE, f"used_{r}")
+        model.Add(usage == total_used)
+        used[r] = usage
+        model.Add(usage <= held.get(r, 0) + add[r])
+    model.Minimize(sum(add[r] * unit[r] for r in ratings))
+
+    solver = cp_model.CpSolver()
+    solver.parameters.max_time_in_seconds = 5.0
+    status = solver.Solve(model)
+    if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+        return []
+
+    shortfalls = [
+        SupplyShortfall(
+            rating=r,
+            needed=solver.Value(used[r]),
+            held=held.get(r, 0),
+            unit_cost=unit[r],
+        )
+        for r in ratings
+        if solver.Value(add[r]) > 0
+    ]
+    # Cheapest gap to close first, because that is the one to act on.
+    shortfalls.sort(key=lambda s: (s.cost_to_close if s.cost_to_close is not None else 0, s.missing))
+    return shortfalls
+
+
+def _supply_or_unexplained(
+    search: _Search,
+    target_count: int,
+    requirements: list[Requirement],
+    probe_budget: float,
+    pairs_searched: bool,
+) -> ShortfallDiagnosis:
+    """Supply first, because a requirement named for a supply problem misleads."""
+    shortfalls = _supply_diagnosis(search.pool, search.multisets, target_count)
+    if shortfalls:
+        lines = "; ".join(s.describe(target_count) for s in shortfalls)
+        cheapest = shortfalls[0]
+        tail = ""
+        if len(shortfalls) > 1 and cheapest.cost_to_close is not None:
+            tail = f". Cheapest gap to close is {cheapest.missing} rated {cheapest.rating}"
+        return ShortfallDiagnosis(
+            mode="supply",
+            blocking=[],
+            contributions=[],
+            explanation=f"the club running out of cards, not any requirement: {lines}{tail}",
+            supply=shortfalls,
+        )
+
+    if not requirements:
+        return ShortfallDiagnosis(
+            mode="unexplained",
+            blocking=[],
+            contributions=[],
+            explanation=(
+                "the pool, though it holds enough cards at every rating. Something "
+                "about how they combine is the limit"
+            ),
+        )
+
+    contributions: list[tuple[str, int | None]] = []
+    for requirement in requirements:
+        smallest: int | None = None
+        for by in (1, 2, 3):
+            loosened = _relaxed(requirement, by)
+            if loosened is None:
+                break
+            swapped = [loosened if r is requirement else r for r in requirements]
+            if search.feasible(target_count, swapped, probe_budget):
+                smallest = by
+                break
+        contributions.append((_describe(requirement), smallest))
+
+    movable = [(name, by) for name, by in contributions if by is not None]
+    skipped = "" if pairs_searched else ", and there were too many requirements to search pairs"
+    if movable:
+        closest = ", ".join(
+            f"{name} (loosen by {by})" for name, by in sorted(movable, key=lambda x: x[1])
+        )
+        explanation = (
+            f"no single requirement and no pair explains it{skipped}, and the club is not "
+            f"short of cards. Closest to binding: {closest}"
+        )
+    else:
+        explanation = (
+            f"no single requirement and no pair explains it{skipped}, the club is not short "
+            f"of cards, and no requirement loosened by up to 3 unblocks it either"
+        )
+    return ShortfallDiagnosis(
+        mode="unexplained", blocking=[], contributions=contributions, explanation=explanation
+    )
+
+
 def _diagnose(
     search: _Search, target_count: int, requirements: list[Requirement], probe_budget: float
 ) -> ShortfallDiagnosis:
-    """Which requirements block squad `target_count`. Singles, then pairs, then honesty."""
+    """Why squad `target_count` cannot be built. Singles, pairs, supply, honesty."""
     if not requirements:
-        return ShortfallDiagnosis(
-            blocking=[],
-            contributions=[],
-            explanation="the size of the available pool, not any requirement",
-        )
+        return _supply_or_unexplained(search, target_count, [], probe_budget, True)
 
     # Singles.
     for index, requirement in enumerate(requirements):
         reduced = requirements[:index] + requirements[index + 1 :]
         if search.feasible(target_count, reduced, probe_budget):
             return ShortfallDiagnosis(
+                mode="requirement",
                 blocking=[_describe(requirement)],
                 contributions=[],
                 explanation=_describe(requirement),
@@ -451,6 +636,7 @@ def _diagnose(
             if search.feasible(target_count, reduced, probe_budget):
                 names = [_describe(requirements[first]), _describe(requirements[second])]
                 return ShortfallDiagnosis(
+                    mode="requirement_pair",
                     blocking=names,
                     contributions=[],
                     explanation=(
@@ -459,36 +645,7 @@ def _diagnose(
                     ),
                 )
 
-    # Neither. Say so, and report how far each requirement is from binding rather
-    # than going quiet on the case that most needs explaining.
-    contributions: list[tuple[str, int | None]] = []
-    for requirement in requirements:
-        smallest: int | None = None
-        for by in (1, 2, 3):
-            loosened = _relaxed(requirement, by)
-            if loosened is None:
-                break
-            swapped = [loosened if r is requirement else r for r in requirements]
-            if search.feasible(target_count, swapped, probe_budget):
-                smallest = by
-                break
-        contributions.append((_describe(requirement), smallest))
-
-    movable = [(name, by) for name, by in contributions if by is not None]
-    if movable:
-        closest = ", ".join(f"{name} (loosen by {by})" for name, by in sorted(movable, key=lambda x: x[1]))
-        explanation = (
-            f"no single requirement and no pair explains it"
-            f"{'' if pairs_searched else ', and there were too many requirements to search pairs'}. "
-            f"Closest to binding: {closest}"
-        )
-    else:
-        explanation = (
-            f"no single requirement and no pair explains it"
-            f"{'' if pairs_searched else ', and there were too many requirements to search pairs'}, "
-            f"and no requirement loosened by up to 3 unblocks it either. The pool is the limit"
-        )
-    return ShortfallDiagnosis(blocking=[], contributions=contributions, explanation=explanation)
+    return _supply_or_unexplained(search, target_count, requirements, probe_budget, pairs_searched)
 
 
 def solve_repeat(
