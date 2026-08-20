@@ -8,7 +8,14 @@ from __future__ import annotations
 
 import pytest
 
-from fc_ai_solver import PlannerChallenge, PoolCard, plan_grind
+from fc_ai_solver import (
+    PlannerChallenge,
+    PoolCard,
+    Requirement,
+    RequirementBlock,
+    ShortfallDiagnosis,
+    plan_grind,
+)
 from fc_ai_solver.repeat_solve import _supply_diagnosis
 
 M85 = [{86: 4, 85: 1, 83: 6}, {86: 3, 85: 4, 82: 4}]
@@ -170,3 +177,180 @@ class TestEdges:
             PlannerChallenge("bad", 0, M85)
         with pytest.raises(ValueError, match="priority"):
             PlannerChallenge("bad", 1, M85, priority=0)
+
+
+FORMATION = ["GK", "LB", "CB", "CB", "RB", "LM", "CM", "CM", "RM", "ST", "ST"]
+ANY_POSITION = list(set(FORMATION))
+TOTW_REQ = [Requirement(type="totwCount", op="min", value=1)]
+
+
+def placeable(rating: int, count: int, cost: int, prefix: str, **kw) -> list[PoolCard]:
+    return [
+        PoolCard(id=f"{prefix}{rating}n{i}", rating=rating, positions=ANY_POSITION,
+                 nation=f"N{prefix}{i}", league=f"L{prefix}{i}", club=f"C{prefix}{i}",
+                 card_type=kw.pop("card_type", "rare"), quantity=1, cost=cost, **kw)
+        for i in range(count)
+    ]
+
+
+def totw_starved_pool(totw_count: int = 2) -> list[PoolCard]:
+    """Deep at every rating, but only a couple of TOTW cards."""
+    return (
+        placeable(86, 30, 4000, "h") + placeable(85, 30, 2600, "m")
+        + placeable(84, 20, 1800, "n") + placeable(83, 60, 1200, "l")
+        + placeable(82, 60, 900, "x")
+        + placeable(83, totw_count, 1500, "totw", card_type="totw", is_totw=True, is_rare=True)
+    )
+
+
+class TestAFlagCarriesItsReason:
+    """A warning without a reason is exactly where someone buys anyway, with a
+    confident coin figure sitting next to it."""
+
+    def test_the_diagnosis_is_run_and_attached(self):
+        pool = totw_starved_pool()
+        plan = plan_grind(
+            pool,
+            [PlannerChallenge("85 TOTW squad", 4, M85, formation_slots=FORMATION,
+                              requirements=TOTW_REQ)],
+            known_achievable={"85 TOTW squad": 2},
+        )
+        (block,) = plan.blocks
+        assert block.achieved == 2
+        assert block.supply_ceiling == 4
+        assert block.diagnosis is not None
+        assert block.diagnosis.mode == "requirement"
+        assert block.diagnosis.blocking == ["totwCount min 1"]
+
+    def test_and_the_message_names_the_blocker_rather_than_warning_vaguely(self):
+        pool = totw_starved_pool()
+        plan = plan_grind(
+            pool,
+            [PlannerChallenge("85 TOTW squad", 4, M85, formation_slots=FORMATION,
+                              requirements=TOTW_REQ)],
+            known_achievable={"85 TOTW squad": 2},
+        )
+        described = plan.blocks[0].describe()
+        assert "buying cards would not help" in described
+        assert "Squad 3 is blocked by totwCount min 1" in described
+
+    def test_without_the_inputs_to_diagnose_it_says_so_rather_than_guessing(self):
+        # No formation supplied, so the plan can say a challenge is held back by
+        # something other than supply but not what.
+        plan = plan_grind(
+            deep_pool(),
+            [PlannerChallenge("85 squad", 3, M85)],
+            known_achievable={"85 squad": 1},
+        )
+        (block,) = plan.blocks
+        assert block.diagnosis is None
+        assert "cannot say what is blocking it" in block.describe()
+
+    def test_an_unexplained_diagnosis_is_reported_as_unexplained(self):
+        block = RequirementBlock(
+            name="odd one",
+            achieved=2,
+            supply_ceiling=5,
+            diagnosis=ShortfallDiagnosis(
+                mode="unexplained", blocking=[], contributions=[],
+                explanation="no single requirement and no pair explains it",
+            ),
+        )
+        described = block.describe()
+        assert "could not name" in described
+        # And no room to read it as "the purchase might work anyway".
+        assert "Buying cards is not the answer" in described
+
+
+class TestAFlaggedChallengeGetsNoPurchaseQuoted:
+    """A quoted number next to a warning gets read as a number, so the number goes."""
+
+    def test_no_step_ever_unlocks_a_flagged_challenge(self):
+        pool = totw_starved_pool()
+        challenges = [
+            PlannerChallenge("85 TOTW squad", 6, M85, formation_slots=FORMATION,
+                             requirements=TOTW_REQ),
+            PlannerChallenge("84 squad", 6, M84, formation_slots=FORMATION),
+        ]
+        plan = plan_grind(pool, challenges, known_achievable={"85 TOTW squad": 2})
+        assert plan.requirement_limited == ["85 TOTW squad"]
+        for step in plan.steps:
+            assert step.unlocks["85 TOTW squad"] == 0
+
+    def test_purchases_target_the_unflagged_challenge_instead(self):
+        # The unflagged challenge has to be genuinely supply limited for there to
+        # be anything worth buying, so this pool is thin on 84s. Pinning the
+        # flagged challenge also caps the queue total, which is why the first
+        # version of this test found nothing to buy: the only headroom left in
+        # the queue belonged to the challenge that cannot use it.
+        pool = (
+            placeable(86, 30, 4000, "h") + placeable(85, 30, 2600, "m")
+            + placeable(84, 3, 1800, "n") + placeable(83, 60, 1200, "l")
+            + placeable(82, 60, 900, "x")
+            + placeable(83, 2, 1500, "totw", card_type="totw", is_totw=True, is_rare=True)
+        )
+        challenges = [
+            PlannerChallenge("85 TOTW squad", 6, M85, formation_slots=FORMATION,
+                             requirements=TOTW_REQ),
+            PlannerChallenge("84 squad", 6, M84, formation_slots=FORMATION),
+        ]
+        plan = plan_grind(pool, challenges, known_achievable={"85 TOTW squad": 2})
+        assert plan.steps, "the 84 squad is short of 84s, so there is something to buy"
+        assert plan.steps[0].unlocks["84 squad"] >= 1
+        assert plan.steps[0].unlocks["85 TOTW squad"] == 0
+        assert 84 in {p.rating for p in plan.steps[0].purchases}
+
+    def test_the_flagged_challenge_is_reported_at_what_it_can_really_build(self):
+        pool = totw_starved_pool()
+        plan = plan_grind(
+            pool,
+            [
+                PlannerChallenge("85 TOTW squad", 6, M85, formation_slots=FORMATION,
+                                 requirements=TOTW_REQ),
+                PlannerChallenge("84 squad", 6, M84, formation_slots=FORMATION),
+            ],
+            known_achievable={"85 TOTW squad": 2},
+        )
+        # The ceiling is kept for the explanation, but the baseline is the truth.
+        assert plan.baseline["85 TOTW squad"] == 2
+        assert plan.supply_ceiling["85 TOTW squad"] > 2
+        assert "85 TOTW squad" not in plan.supply_limited
+
+
+class TestAQueueWhereNothingIsUnflagged:
+    def test_there_is_no_shopping_list_at_all(self):
+        pool = totw_starved_pool()
+        plan = plan_grind(
+            pool,
+            [PlannerChallenge("85 TOTW squad", 6, M85, formation_slots=FORMATION,
+                              requirements=TOTW_REQ)],
+            known_achievable={"85 TOTW squad": 2},
+        )
+        assert plan.queue_is_requirement_blocked
+        assert plan.steps == []
+        assert plan.biggest_unlock is None
+
+    def test_and_the_summary_says_requirement_blocked_not_supply_blocked(self):
+        pool = totw_starved_pool()
+        plan = plan_grind(
+            pool,
+            [PlannerChallenge("85 TOTW squad", 6, M85, formation_slots=FORMATION,
+                              requirements=TOTW_REQ)],
+            known_achievable={"85 TOTW squad": 2},
+        )
+        summary = plan.summary()
+        assert "requirement blocked, not supply blocked" in summary
+        assert "there is no shopping list" in summary
+        assert "Squad 3 is blocked by totwCount min 1" in summary
+        # No coin figure anywhere, because that is the thing that gets read.
+        assert "coins" not in summary
+        assert "Best value purchase" not in summary
+
+    def test_a_healthy_queue_still_gets_its_shopping_list(self):
+        plan = plan_grind(deep_pool(), [
+            PlannerChallenge("85 squad", 4, M85),
+            PlannerChallenge("84 squad", 3, M84),
+        ])
+        assert not plan.queue_is_requirement_blocked
+        assert "Best value purchase" in plan.summary()
+        assert "coins per squad" in plan.summary()
