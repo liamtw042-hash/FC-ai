@@ -60,8 +60,22 @@ def add_challenge(
     requirements: list[Requirement],
     chemistry: ChemistryConfig | None,
     tag: str = "s0",
+    active: cp_model.IntVar | None = None,
 ):
-    """Adds every requirement for one challenge. Returns (slot_chem, squad_chem)."""
+    """Adds every requirement for one challenge. Returns (slot_chem, squad_chem).
+
+    `active` is for a squad that MAY not be built, which is what queue mode needs.
+    An unbuilt squad has every usage at zero, so an unconditional "min 4 from the
+    Premier League" would fail and force the squad to be built, making a queue the
+    club cannot fully feed infeasible rather than partially solved. Every
+    requirement constraint is therefore gated on `active`. Without it the behaviour
+    is unchanged, which is what the single and repeat solvers want.
+    """
+
+    def enforce(constraint):
+        if active is not None:
+            constraint.OnlyEnforceIf(active)
+        return constraint
     clubs = _group_by(pool, lambda c: c.club)
     leagues = _group_by(pool, lambda c: c.league)
     nations = _group_by(pool, lambda c: c.nation)
@@ -71,11 +85,11 @@ def add_challenge(
 
     def apply_op(expression, op: str, value: int) -> None:
         if op == "min":
-            model.Add(expression >= value)
+            enforce(model.Add(expression >= value))
         elif op == "max":
-            model.Add(expression <= value)
+            enforce(model.Add(expression <= value))
         elif op == "exact":
-            model.Add(expression == value)
+            enforce(model.Add(expression == value))
         else:
             raise UnsupportedRequirement(f"unknown operator {op!r}")
 
@@ -110,7 +124,7 @@ def add_challenge(
         _, counts, _ = by_kind(kind)
         if op == "max":
             for total in counts.values():
-                model.Add(total <= value)
+                enforce(model.Add(total <= value))
             return
         if op != "min":
             raise UnsupportedRequirement(f"sameCount does not support {op!r}")
@@ -122,7 +136,11 @@ def add_challenge(
             pick = model.NewBoolVar(f"same_{tag}_{kind}_{name}")
             model.Add(total >= value).OnlyEnforceIf(pick)
             picks.append(pick)
-        model.AddAtLeastOne(picks)
+        if active is None:
+            model.AddAtLeastOne(picks)
+        else:
+            # Satisfied automatically when the squad is not built.
+            model.AddBoolOr([*picks, active.Not()])
 
     def property_count(predicate) -> object:
         return sum(usage[i] for i, card in enumerate(pool) if predicate(card))
@@ -154,7 +172,7 @@ def add_challenge(
             continue
         elif kind == "teamChemistry":
             assert squad_chemistry is not None
-            model.Add(squad_chemistry >= (value or 0))
+            enforce(model.Add(squad_chemistry >= (value or 0)))
         elif kind == "perPlayerChemistry":
             # Distinct from teamChemistry: a squad can hit the total and still
             # fail a per player floor. count omitted means all eleven.
@@ -167,7 +185,7 @@ def add_challenge(
                 model.Add(chem >= bar).OnlyEnforceIf(flag)
                 model.Add(chem <= bar - 1).OnlyEnforceIf(flag.Not())
                 meets.append(flag)
-            model.Add(sum(meets) >= needed)
+            enforce(model.Add(sum(meets) >= needed))
         elif kind == "playersFromLeague":
             apply_op(count_of(leagues.get(requirement.league or "", [])), op, value or 0)
         elif kind == "playersFromNation":
@@ -203,7 +221,7 @@ def add_challenge(
         elif kind == "maxPlayerRating":
             for index, card in enumerate(pool):
                 if card.rating > (value or 0):
-                    model.Add(usage[index] == 0)
+                    enforce(model.Add(usage[index] == 0))
         elif kind == "specificPlayer":
             wanted = requirement.def_id
             matching = [i for i, card in enumerate(pool) if card.id == wanted]
@@ -211,7 +229,7 @@ def add_challenge(
                 raise ChallengeImpossible(
                     f"the required card {wanted} is not in the available pool"
                 )
-            model.Add(sum(usage[i] for i in matching) >= 1)
+            enforce(model.Add(sum(usage[i] for i in matching) >= 1))
         elif kind == "specificPosition":
             wanted = requirement.position
             slot_indices = [s for s, slot in enumerate(slots) if slot == wanted]
@@ -223,7 +241,7 @@ def add_challenge(
         elif kind == "excludeEvolved":
             for index, card in enumerate(pool):
                 if card.is_evolved:
-                    model.Add(usage[index] == 0)
+                    enforce(model.Add(usage[index] == 0))
         elif kind in ("managerNation", "managerLeague"):
             continue
         else:

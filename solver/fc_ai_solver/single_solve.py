@@ -68,6 +68,24 @@ def solve_single(request: SolveRequest) -> SolveResponse:
             if card.rating not in allowed:
                 model.Add(usage[index] == 0)
 
+    # Diversity: a new squad may reuse at most SQUAD_SIZE - min_difference cards
+    # from any previously found one. Expressed on usage, so a stack of three that
+    # appeared once still only counts the copies actually shared.
+    for previous_index, previous in enumerate(request.exclude_similar_to):
+        counts: dict[str, int] = {}
+        for card_id in previous:
+            counts[card_id] = counts.get(card_id, 0) + 1
+        shared = []
+        for card_id, times in counts.items():
+            index = by_card_id.get(card_id)
+            if index is None:
+                continue
+            overlap = model.NewIntVar(0, times, f"shared_{previous_index}_{index}")
+            model.AddMinEquality(overlap, [usage[index], times])
+            shared.append(overlap)
+        if shared:
+            model.Add(sum(shared) <= SQUAD_SIZE - request.min_difference)
+
     try:
         slot_chemistry, squad_chemistry = add_challenge(
             model, pool, slots, usage, place, request.requirements, request.chemistry

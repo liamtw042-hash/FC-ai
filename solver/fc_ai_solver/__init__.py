@@ -30,6 +30,8 @@ from .repeat_solve import (
     solve_repeat,
     solve_variable_count,
 )
+from .alternatives import Alternative, AlternativesResult, solve_alternatives
+from .queue_solve import ItemOutcome, QueueItem, QueueOutcome, solve_queue, solve_set
 from .challenge_model import ChallengeImpossible, UnsupportedRequirement, add_challenge
 from .single_solve import solve_single
 from .squad_size import (
@@ -52,7 +54,15 @@ __all__ = [
     "SolveRequest",
     "SolveResponse",
     "SQUAD_SIZE",
+    "Alternative",
+    "AlternativesResult",
     "ChallengeImpossible",
+    "ItemOutcome",
+    "QueueItem",
+    "QueueOutcome",
+    "solve_alternatives",
+    "solve_queue",
+    "solve_set",
     "DepthBlock",
     "GrindPlan",
     "GrindStep",

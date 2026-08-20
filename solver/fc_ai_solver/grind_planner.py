@@ -505,6 +505,35 @@ def _diagnose_depths(
     return depths, conditional, probe_to
 
 
+def _ceiling_with_others_held(
+    pool: list[PoolCard],
+    challenges: list[PlannerChallenge],
+    ratings: list[int],
+    unit: dict[int, int],
+    held: dict[int, int],
+    target: PlannerChallenge,
+    known_achievable: dict[str, int],
+    solve,
+) -> int | None:
+    """The most `target` could build with every other challenge held where it is.
+
+    Not "the most it could build if it had the club to itself", which is a
+    different and much less useful number in a queue.
+    """
+    model, squads, _, _ = _model(pool, challenges, ratings, unit, held, allow_purchases=False)
+    for challenge in challenges:
+        if challenge.name == target.name:
+            continue
+        fixed = known_achievable.get(challenge.name)
+        if fixed is not None:
+            model.Add(squads[challenge.name] == fixed)
+    model.Maximize(squads[target.name])
+    solver = solve(model, True)
+    if solver is None:
+        return None
+    return solver.Value(squads[target.name])
+
+
 def plan_grind(
     pool: list[PoolCard],
     challenges: list[PlannerChallenge],
@@ -561,12 +590,40 @@ def plan_grind(
     # flagged challenge is pinned to what it can really build so that no purchase
     # is ever quoted against it. Caveating the number instead would leave a coin
     # figure on the page, and a coin figure next to a warning reads as a coin figure.
+    #
+    # THE COMPARISON HAS TO BE APPLES TO APPLES. `ceiling` above comes from ONE
+    # optimal solution of a degenerate objective: when two challenges carry the
+    # same priority and the club can only feed one of them, which one gets the
+    # squad is an arbitrary tie break, and the queue solver is free to break it
+    # the other way. Comparing this challenge's count in the planner's solution
+    # against its count in the queue's solution then flags a challenge that is
+    # not blocked by anything, and reports "the club can feed 1 squads but only 0
+    # can be built. Buying cards would not help" about a challenge that more
+    # fodder would unlock immediately.
+    #
+    # So when the real counts are known, each challenge is re-ceilinged with every
+    # OTHER challenge held at what it actually achieved. That asks the only
+    # question a flag should turn on: with the rest of the queue as it stands,
+    # could THIS one have done better? If not, it lost the race rather than
+    # hitting a wall, which is contention and is reported per item, not here.
+    effective = dict(ceiling)
+    if known_achievable is not None:
+        for challenge in challenges:
+            achieved = known_achievable.get(challenge.name)
+            if achieved is None:
+                continue
+            alone = _ceiling_with_others_held(
+                pool, challenges, ratings, unit, held, challenge, known_achievable, solve
+            )
+            best = ceiling[challenge.name] if alone is None else alone
+            effective[challenge.name] = max(achieved, best)
+
     blocks: list[RequirementBlock] = []
     pinned: dict[str, int] = {}
     if known_achievable is not None:
         for challenge in challenges:
             achieved = known_achievable.get(challenge.name)
-            if achieved is None or achieved >= ceiling[challenge.name]:
+            if achieved is None or achieved >= effective[challenge.name]:
                 continue
             pinned[challenge.name] = achieved
             depths, conditional, probed_to = _diagnose_depths(
@@ -577,7 +634,7 @@ def plan_grind(
                 RequirementBlock(
                     name=challenge.name,
                     achieved=achieved,
-                    supply_ceiling=ceiling[challenge.name],
+                    supply_ceiling=effective[challenge.name],
                     depths=depths,
                     conditional_supply=conditional,
                     probed_to=probed_to,
@@ -586,7 +643,7 @@ def plan_grind(
             )
 
     baseline = {
-        c.name: pinned.get(c.name, ceiling[c.name]) for c in challenges
+        c.name: pinned.get(c.name, effective[c.name]) for c in challenges
     }
     baseline_total = sum(baseline.values())
 
@@ -597,7 +654,7 @@ def plan_grind(
             steps=[],
             supply_limited=[],
             blocks=blocks,
-            supply_ceiling=ceiling,
+            supply_ceiling=effective,
         )
 
     total_requested = sum(c.requested for c in challenges)
