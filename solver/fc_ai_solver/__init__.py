@@ -20,6 +20,7 @@ from .grind_planner import (
     plan_grind,
 )
 from .repeat_solve import (
+    ClubLimit,
     lexicographic_objective,
     lexicographic_scale,
     NegativeCostError,
@@ -31,6 +32,7 @@ from .repeat_solve import (
     solve_variable_count,
 )
 from .alternatives import Alternative, AlternativesResult, solve_alternatives
+from .impossibility import KINDS, Impossibility, diagnose_impossibility
 from .queue_solve import ItemOutcome, QueueItem, QueueOutcome, solve_queue, solve_set
 from .challenge_model import ChallengeImpossible, UnsupportedRequirement, add_challenge
 from .single_solve import solve_single
@@ -57,6 +59,10 @@ __all__ = [
     "Alternative",
     "AlternativesResult",
     "ChallengeImpossible",
+    "ClubLimit",
+    "Impossibility",
+    "KINDS",
+    "diagnose_impossibility",
     "ItemOutcome",
     "QueueItem",
     "QueueOutcome",

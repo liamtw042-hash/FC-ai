@@ -23,6 +23,46 @@ from .schema import PlacedCard, SolveRequest, SolveResponse
 from .squad_size import SQUAD_SIZE, require_squad_size
 
 
+def _why_not(request: SolveRequest) -> str:
+    """The checkpoint 12 answer, or the old shrug when diagnosis is turned off.
+
+    Imported inside the function on purpose: the diagnosis module builds on the
+    repeat mode machinery, and a module level import here would make the single
+    solve depend on it just to say why it failed.
+    """
+    if not request.diagnose_on_failure:
+        return "no squad in the available pool satisfies these requirements"
+    from .impossibility import diagnose_impossibility
+
+    multisets = [request.rating_counts] if request.rating_counts else None
+    try:
+        report = diagnose_impossibility(
+            request.pool,
+            request.formation_slots,
+            requirements=request.requirements,
+            chemistry=request.chemistry,
+            multisets=multisets,
+            universal_conflicts=request.universal_conflicts,
+            time_budget_seconds=request.diagnosis_budget_seconds,
+            workers=request.workers,
+        )
+    except Exception as error:  # noqa: BLE001
+        # A diagnosis that fails must not turn a clean "infeasible" into a crash.
+        return (
+            f"no squad in the available pool satisfies these requirements, and the "
+            f"diagnosis could not run: {error}"
+        )
+    if report.solvable:
+        # The diagnosis relaxes pins and exclusions the real solve enforces, so
+        # this is possible and saying which is better than contradicting ourselves.
+        return (
+            "no squad satisfies these requirements as posed. The requirements and the "
+            "club are compatible on their own, so the limit is in the pins, the "
+            "exclusions or the exact rating multiset asked for"
+        )
+    return report.describe()
+
+
 def solve_single(request: SolveRequest) -> SolveResponse:
     pool = request.pool
     slots = request.formation_slots
@@ -106,7 +146,7 @@ def solve_single(request: SolveRequest) -> SolveResponse:
         return SolveResponse(
             status="infeasible",
             wall_time_seconds=elapsed,
-            reason="no squad in the available pool satisfies these requirements",
+            reason=_why_not(request),
         )
     if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
         return SolveResponse(

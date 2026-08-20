@@ -440,8 +440,13 @@ class TestNoSingleCauseIsReportedAsIfItWereTheWhole:
         search = self._StubSearch({"totwCount"})
         diagnosis = _diagnose(search, 3, requirements, 1.0)
         assert diagnosis.blocking == ["totwCount min 1"]
-        assert diagnosis.explanation == "totwCount min 1"
+        assert diagnosis.explanation.startswith("totwCount min 1")
         assert "removing ANY one" not in diagnosis.explanation
+        # It now carries what the club can do against it, which is checkpoint 12's
+        # half of the answer. The stub search only models presence and absence, so
+        # what it reports here is that removing it is what helps.
+        assert len(diagnosis.limits) == 1
+        assert diagnosis.limits[0].name == "totwCount min 1"
 
     def test_and_a_real_pool_where_neither_alone_suffices_still_reports_a_pair(self):
         # The construction that produced a pair rather than two singles, kept
