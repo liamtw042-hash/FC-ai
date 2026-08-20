@@ -263,6 +263,7 @@ class TestAFlagCarriesItsReason:
             ],
             conditional_supply=[],
             probed_to=4,
+            requested=4,
         )
         described = block.describe()
         assert "could not name" in described
@@ -456,10 +457,25 @@ class TestBlockingIsPerSquadNotPerChallenge:
         for step in plan.steps:
             assert step.unlocks["85 TOTW squad"] == 0
 
-    def test_probing_is_bounded_and_says_how_far_it_looked(self):
+    def test_by_default_it_probes_every_squad_that_was_asked_for(self):
+        # A fixed cap of four meant a run of ten stopped at squad six and said
+        # nothing about the rest, which is the depth range this exists to cover.
         plan = plan_grind(
             deep_at_every_rating(),
-            [PlannerChallenge("85 TOTW squad", 20, M85, formation_slots=FORMATION,
+            [PlannerChallenge("85 TOTW squad", 6, M85, formation_slots=FORMATION,
+                              requirements=TOTW_REQ)],
+            known_achievable={"85 TOTW squad": 2},
+        )
+        (block,) = plan.blocks
+        assert block.probed_to == 6
+        assert [d.depth for d in block.depths] == [3, 4, 5, 6]
+        assert not block.probing_was_capped
+        assert "UNKNOWN" not in block.describe()
+
+    def test_when_capped_it_says_the_rest_is_unknown_rather_than_nothing(self):
+        plan = plan_grind(
+            deep_at_every_rating(),
+            [PlannerChallenge("85 TOTW squad", 8, M85, formation_slots=FORMATION,
                               requirements=TOTW_REQ)],
             known_achievable={"85 TOTW squad": 2},
             max_depth_probes=2,
@@ -467,3 +483,9 @@ class TestBlockingIsPerSquadNotPerChallenge:
         (block,) = plan.blocks
         assert block.probed_to == 4
         assert [d.depth for d in block.depths] == [3, 4]
+        assert block.probing_was_capped
+        described = block.describe()
+        # Silence beyond the cap would read as "nothing blocks those", which is
+        # not what a cap means.
+        assert "Squads 5 to 8 were not probed" in described
+        assert "UNKNOWN rather than nothing" in described

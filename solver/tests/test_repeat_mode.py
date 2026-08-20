@@ -15,6 +15,7 @@ import pytest
 pytestmark = pytest.mark.slow
 
 from fc_ai_solver import PoolCard, Requirement, solve_repeat
+from fc_ai_solver.repeat_solve import _diagnose
 
 FORMATION = ["GK", "LB", "CB", "CB", "RB", "LM", "CM", "CM", "RM", "ST", "ST"]
 ANY_POSITION = list(set(FORMATION))
@@ -388,3 +389,77 @@ class TestSupplyIsADiagnosisModeOfItsOwn:
         )
         assert result.diagnosis.mode == "requirement_pair"
         assert result.diagnosis.supply == []
+
+
+class TestNoSingleCauseIsReportedAsIfItWereTheWhole:
+    """Audit outcome: the singles loop used to return the FIRST requirement whose
+    removal unblocked, so two independently sufficient blockers reported as one.
+
+    Driven through _diagnose with a stub search rather than a real pool. Building
+    a club where two requirements are each independently sufficient to fix is
+    fiddly and the fiddliness would be testing the fixture, not the logic. The
+    first attempt at a real pool produced a PAIR, correctly, which is a different
+    path and already covered.
+    """
+
+    class _StubSearch:
+        """Feasible exactly when at least one of the two blockers is absent."""
+
+        def __init__(self, blockers):
+            self.blockers = blockers
+            self.pool = []
+            self.multisets = None
+
+        def feasible(self, count, requirements, budget=None):
+            present = {r.type for r in requirements}
+            return not all(b in present for b in self.blockers)
+
+    def test_every_independently_sufficient_requirement_is_named_not_the_first(self):
+        requirements = [
+            Requirement(type="totwCount", op="min", value=1),
+            Requirement(type="promoCount", promo_name="FUTTIES", op="min", value=1),
+            Requirement(type="minPlayerRating", value=82),
+        ]
+        search = self._StubSearch({"totwCount", "promoCount"})
+        diagnosis = _diagnose(search, 3, requirements, 1.0)
+
+        assert diagnosis.mode == "requirement"
+        assert sorted(diagnosis.blocking) == sorted(
+            ["totwCount min 1", "promoCount promo=FUTTIES min 1"]
+        )
+        assert "removing ANY one unblocks squad 3" in diagnosis.explanation
+        # The innocent third requirement is not named.
+        assert "minPlayerRating" not in diagnosis.explanation
+
+    def test_a_lone_blocker_still_reads_as_a_lone_blocker(self):
+        requirements = [
+            Requirement(type="totwCount", op="min", value=1),
+            Requirement(type="minPlayerRating", value=82),
+        ]
+        # Only removing totwCount helps.
+        search = self._StubSearch({"totwCount"})
+        diagnosis = _diagnose(search, 3, requirements, 1.0)
+        assert diagnosis.blocking == ["totwCount min 1"]
+        assert diagnosis.explanation == "totwCount min 1"
+        assert "removing ANY one" not in diagnosis.explanation
+
+    def test_and_a_real_pool_where_neither_alone_suffices_still_reports_a_pair(self):
+        # The construction that produced a pair rather than two singles, kept
+        # because it is the boundary between the two paths.
+        pool = (
+            fodder(60, 86, 4000, "h") + fodder(40, 85, 2600, "m")
+            + fodder(80, 83, 1200, "l") + fodder(60, 82, 900, "x")
+            + fodder(2, 83, 1500, "totw", card_type="totw", is_totw=True, is_rare=True)
+            + fodder(2, 83, 1500, "promo", card_type="promo", promo_name="FUTTIES", is_rare=True)
+        )
+        result = solve_repeat(
+            pool, FORMATION, requested=4,
+            requirements=[
+                Requirement(type="totwCount", op="min", value=1),
+                Requirement(type="promoCount", promo_name="FUTTIES", op="min", value=1),
+            ],
+            allowed_rating_multisets=MULTISETS_85,
+        )
+        assert result.achieved == 2
+        assert result.diagnosis.mode == "requirement_pair"
+        assert result.binding_requirement is None

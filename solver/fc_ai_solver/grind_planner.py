@@ -168,11 +168,13 @@ class RequirementBlock:
         depths: list[DepthBlock],
         conditional_supply: list[SupplyShortfall],
         probed_to: int,
+        requested: int,
         diagnosis: ShortfallDiagnosis | None = None,
     ) -> None:
         self.name = name
         self.achieved = achieved
         self.supply_ceiling = supply_ceiling
+        self.requested = requested
         self.depths = depths
         # What would be needed at the deeper squads where supply is the cause.
         # Only meaningful once the requirement above has been cleared.
@@ -201,8 +203,17 @@ class RequirementBlock:
         return contiguous
 
     @property
+    def probing_was_capped(self) -> bool:
+        """True when depths beyond probed_to were never looked at."""
+        return self.probed_to < self.requested
+
+    @property
     def binds_all_the_way(self) -> bool:
-        """No depth probed had supply as its cause, so no purchase helps at all."""
+        """No depth probed had supply as its cause, so no purchase helps at all.
+
+        Only as far as probed_to. Beyond that the answer is UNKNOWN rather than
+        absent, and describe() says so rather than letting silence read as "no".
+        """
         return not self.supply_depths
 
     def describe(self) -> str:
@@ -226,8 +237,15 @@ class RequirementBlock:
         else:
             lead = f"Squad {first.depth} is blocked by {first.explanation}"
 
+        unknown = (
+            f". Squads {self.probed_to + 1} to {self.requested} were not probed, so what "
+            f"blocks them is UNKNOWN rather than nothing"
+            if self.probing_was_capped
+            else ""
+        )
+
         if self.binds_all_the_way:
-            return f"{head}. Buying cards would not help. {lead}"
+            return f"{head}. Buying cards would not help. {lead}{unknown}"
 
         deeper = self.supply_depths
         span = (
@@ -239,7 +257,7 @@ class RequirementBlock:
         return (
             f"{head}. {lead}. Beyond that, {span} would also need cards: {needs}. "
             f"Clearing the requirement above is a PRECONDITION. Buying those cards on "
-            f"their own unlocks nothing"
+            f"their own unlocks nothing{unknown}"
         )
 
 
@@ -377,7 +395,7 @@ def _diagnose_depths(
     challenge: PlannerChallenge,
     achieved: int,
     budget: float,
-    max_depth_probes: int,
+    max_depth_probes: int | None,
 ) -> tuple[list[DepthBlock], list[SupplyShortfall], int]:
     """Diagnose each squad depth separately, not just the first unbuildable one.
 
@@ -392,7 +410,14 @@ def _diagnose_depths(
         pool, challenge.formation_slots, challenge.chemistry, challenge.multisets, budget, 8
     )
     requirements = list(challenge.requirements)
-    probe_to = min(challenge.requested, achieved + max_depth_probes)
+    # Default: probe every squad that was actually asked for. A fixed cap of four
+    # meant a run of ten stopped at squad six and said nothing about the rest,
+    # which is exactly the depth range this analysis exists to cover.
+    probe_to = (
+        challenge.requested
+        if max_depth_probes is None
+        else min(challenge.requested, achieved + max_depth_probes)
+    )
 
     depths: list[DepthBlock] = []
     for depth in range(achieved + 1, probe_to + 1):
@@ -413,7 +438,7 @@ def plan_grind(
     max_extra_steps: int = 3,
     known_achievable: dict[str, int] | None = None,
     time_budget_seconds: float = 5.0,
-    max_depth_probes: int = 4,
+    max_depth_probes: int | None = None,
 ) -> GrindPlan:
     """What the club can feed now, and the cheapest way to feed more."""
     if not challenges:
@@ -467,6 +492,7 @@ def plan_grind(
                     depths=depths,
                     conditional_supply=conditional,
                     probed_to=probed_to,
+                    requested=challenge.requested,
                 )
             )
 

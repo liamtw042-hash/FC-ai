@@ -180,14 +180,19 @@ export function runFixture(
     failures.push({ what: 'fixture structure', expected: 'valid', actual: problem })
   }
 
-  if (failures.length === 0 && fixture.verifies.includes('squadRating')) {
+  // Both checks run whenever the fixture is structurally sound. Gating chemistry
+  // on the rating having passed meant a fixture wrong about both reported only
+  // the rating, and the second failure appeared only after the first was fixed.
+  const structurallySound = failures.length === 0
+
+  if (structurallySound && fixture.verifies.includes('squadRating')) {
     const actual = calculateSquadRating(fixture.players.map((p) => p.rating))
     if (actual !== fixture.displayedRating) {
       failures.push({ what: 'squad rating', expected: fixture.displayedRating, actual })
     }
   }
 
-  if (failures.length === 0 && fixture.verifies.includes('chemistry')) {
+  if (structurallySound && fixture.verifies.includes('chemistry')) {
     const result = calculateChemistry(toPlacedPlayers(fixture, registry))
     if (result.total !== fixture.displayedChemistry) {
       failures.push({
