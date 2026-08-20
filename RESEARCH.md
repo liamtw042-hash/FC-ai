@@ -783,6 +783,40 @@ unrecognised line, not a 3.
 is still saved, and the disagreement is reported as a FINDING rather than an error, because
 the fixture is what the game displayed and the engine is the thing under test.
 
+### 8.11 The second audit: incompleteness reported as fact
+
+`SECOND-AUDIT.md`, over the solve loop and the queue and set paths, asking a different
+question from the first one: **where does a result that means "we did not finish looking"
+get reported as "we looked and it is not there"?**
+
+One line is behind most of it. `_Search.feasible` returns a `bool`, and CP-SAT returns four
+states. `UNKNOWN` means the budget ran out, and collapsing it into `False` makes "we could
+not find one" indistinguishable from "there is not one". That is not a bug in `feasible`, a
+predicate has to return a bool; it is a bug in everything that used the answer without
+asking whether it was reliable.
+
+Five paths produced a false or misleading sentence, and all five are fixed:
+
+1. **Every diagnosis mode.** `_Search` now counts probes that came back `UNKNOWN`, and
+   `_diagnose` stamps every answer with how many probes behind it never finished, in the
+   explanation itself rather than in a separate field. A caveat only counts if it is where
+   the number is.
+2. **The planner's baseline.** An empty `GrindPlan` used to render as "Nothing left to
+   unlock by buying: the queue is fully fed", which is the OPPOSITE of the truth produced by
+   a timeout. It now says "NO PLAN... this is not the same as there being nothing to buy".
+3. **The purchase step loop**, which broke on the first unsolved step and said nothing about
+   the ones never looked at. Now "UNKNOWN beyond that, not nothing".
+4. **The queue's empty outcome**, which rendered a row of zeroes whether the model proved
+   impossibility or ran out of time. Those are now different sentences.
+5. **`solve_alternatives`.** `exhausted` was set by a timeout as well as by a proof, so a
+   timeout printed "the pool has no further squad differing by 3 cards" when nobody had
+   checked. `exhausted` and `timed_out` are now separate.
+
+Item 5 is the one to remember. **The first pass of this audit waved it through**, on the
+strength of its output wording, and the code said something different. The first audit had
+the same reversal in its item 5, on prices. Reading what a path prints is not the same as
+reading what it does.
+
 ## 9. Still open
 
 | Ref | Item | Status |

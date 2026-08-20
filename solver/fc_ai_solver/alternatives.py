@@ -54,12 +54,17 @@ class AlternativesResult:
         requested: int,
         min_difference: int,
         exhausted: bool,
+        timed_out: bool = False,
     ) -> None:
         self.alternatives = alternatives
         self.requested = requested
         self.min_difference = min_difference
-        # True when the pool ran out of genuinely different squads before N.
+        # True when the pool was PROVED to hold no further different squad.
         self.exhausted = exhausted
+        # True when the search ran out of time instead. NOT the same fact: one
+        # says there is no fifth squad, the other says we did not find one, and
+        # they were the same flag until the second audit.
+        self.timed_out = timed_out
 
     def describe(self) -> str:
         lines = []
@@ -72,12 +77,20 @@ class AlternativesResult:
                 dropped, added = alternative.diff_against(self.alternatives[0])
                 head += f"  vs #1: out {', '.join(dropped)} / in {', '.join(added)}"
             lines.append(head)
-        if self.exhausted and len(self.alternatives) < self.requested:
-            lines.append(
-                f"  Only {len(self.alternatives)} of {self.requested} found: the pool has "
-                f"no further squad differing by {self.min_difference} cards. Fewer than "
-                f"asked for is not a failure, it is the honest count."
-            )
+        if len(self.alternatives) < self.requested:
+            if self.timed_out:
+                lines.append(
+                    f"  Only {len(self.alternatives)} of {self.requested} found, and the "
+                    f"search RAN OUT OF TIME rather than running out of squads. Whether a "
+                    f"further one differing by {self.min_difference} cards exists is "
+                    f"UNKNOWN. Raise the time budget."
+                )
+            elif self.exhausted:
+                lines.append(
+                    f"  Only {len(self.alternatives)} of {self.requested} found: the pool has "
+                    f"no further squad differing by {self.min_difference} cards. Fewer than "
+                    f"asked for is not a failure, it is the honest count."
+                )
         return "\n".join(lines)
 
 
@@ -104,7 +117,12 @@ def solve_alternatives(
             update={"exclude_similar_to": list(forbidden), "min_difference": min_difference}
         )
         response = solve_single(attempt)
-        if response.status not in ("optimal", "feasible"):
+        if response.status == "unknown":
+            # Out of time, not out of squads. Reported as ignorance.
+            return AlternativesResult(
+                found, count, min_difference, exhausted=False, timed_out=True,
+            )
+        if response.status != "optimal" and response.status != "feasible":
             return AlternativesResult(found, count, min_difference, exhausted=True)
 
         alternative = Alternative(response, index)
