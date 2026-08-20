@@ -13,9 +13,11 @@
     "solver:install": "pip install -r solver/requirements.txt",
     "solver:test": "cd solver && python3 -m pytest tests -q",
     "solver:dev": "cd solver && python3 -m uvicorn fc_ai_solver.app:app --host 127.0.0.1 --port 8000 --reload",
-    "test:all": "npm run test && npm run solver:test",
+    "test:all": "npm run typecheck && npm run test && npm run check:branches && npm run solver:test",
     "crosscheck:generate": "tsx scripts/generate-chemistry-crosscheck.ts",
-    "solver:test:fast": "cd solver && python3 -m pytest tests -q -m \"not slow\""
+    "solver:test:fast": "cd solver && python3 -m pytest tests -q -m \"not slow\"",
+    "check:branches": "tsx scripts/checkBranchPolicy.ts main",
+    "hooks:install": "git config core.hooksPath .githooks && echo \"pre-push hook installed\""
   },
   "devDependencies": {
     "@types/node": "^26.2.0",
