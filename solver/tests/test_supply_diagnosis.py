@@ -9,7 +9,8 @@ from fc_ai_solver.repeat_solve import _supply_diagnosis
 def cards(rating: int, count: int, cost: int) -> list[PoolCard]:
     return [
         PoolCard(id=f"r{rating}n{i}", rating=rating, positions=["CM"], nation="N",
-                 league="L", club="C", card_type="rare", quantity=1, cost=cost)
+                 league="L", club="C", card_type="rare", quantity=1, cost=cost,
+                 market_price=cost)
         for i in range(count)
     ]
 

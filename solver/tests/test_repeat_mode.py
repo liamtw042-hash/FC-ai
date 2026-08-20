@@ -40,6 +40,9 @@ def fodder(count: int, rating: int, cost: int, prefix: str, **kwargs) -> list[Po
             card_type=kwargs.pop("card_type", "rare"),
             quantity=1,
             cost=cost,
+            # What a copy would cost to BUY. `cost` is the weighted figure the
+            # solver minimises and nothing prices a shortfall from it.
+            market_price=kwargs.pop("market_price", cost),
             **kwargs,
         )
         for i in range(count)

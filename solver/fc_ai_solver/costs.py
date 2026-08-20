@@ -18,3 +18,25 @@ OFFSET_DEMO_NOTE = (
     "neutral at a fixed size, biased across mixed sizes, and unrecoverable by "
     "subtraction because that restores the negative raw cost."
 )
+
+
+def tally(pool, squads):
+    """Total cost, coins spent and value burned over a list of built squads.
+
+    COINS AND VALUE ARE NOT THE SAME NUMBER and are never added together. Coins
+    spent is money that left the account. Value burned is what the fodder would
+    have fetched had it been sold instead. A solve that spends nothing and burns
+    three hundred thousand is a very different afternoon from one that spends
+    three hundred thousand, and one figure for both hides which happened.
+
+    Lives here rather than in each solver so the two modes cannot drift apart.
+    """
+    by_id = {card.id: card for card in pool}
+    total = coins = burned = 0
+    for squad in squads:
+        for placement in squad:
+            card = by_id[placement.card_id]
+            total += card.cost
+            coins += card.coins_spent
+            burned += card.value_burned
+    return total, coins, burned

@@ -29,8 +29,11 @@ M84 = [{85: 4, 84: 1, 82: 6}]
 
 def cards(rating: int, count: int, cost: int) -> list[PoolCard]:
     return [
+        # market_price is what a copy would cost to BUY. `cost` is the weighted
+        # figure the solver minimises, and nothing prices a shortfall from it.
         PoolCard(id=f"r{rating}n{i}", rating=rating, positions=["CM"], nation="N",
-                 league="L", club="C", card_type="rare", quantity=1, cost=cost)
+                 league="L", club="C", card_type="rare", quantity=1, cost=cost,
+                 market_price=cost)
         for i in range(count)
     ]
 
@@ -193,7 +196,8 @@ def placeable(rating: int, count: int, cost: int, prefix: str, **kw) -> list[Poo
     return [
         PoolCard(id=f"{prefix}{rating}n{i}", rating=rating, positions=ANY_POSITION,
                  nation=f"N{prefix}{i}", league=f"L{prefix}{i}", club=f"C{prefix}{i}",
-                 card_type=kw.pop("card_type", "rare"), quantity=1, cost=cost, **kw)
+                 card_type=kw.pop("card_type", "rare"), quantity=1, cost=cost,
+                 market_price=kw.pop("market_price", cost), **kw)
         for i in range(count)
     ]
 

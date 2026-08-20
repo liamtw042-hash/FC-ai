@@ -29,7 +29,10 @@ def cards(rating: int, count: int, cost: int, prefix: str, **kw) -> list[PoolCar
         PoolCard(id=f"{prefix}{i}", rating=rating, positions=ANY_POSITION,
                  nation=f"N{prefix}{i}", league=f"L{prefix}{i}", club=f"C{prefix}{i}",
                  card_type=kw.pop("card_type", "rare"), quantity=1, cost=cost,
-                 coins_spent=cost, value_burned=0, **kw)
+                 coins_spent=cost, value_burned=0,
+                 # What a copy would cost to BUY. `cost` is the weighted figure
+                 # the solver minimises and nothing prices a shortfall from it.
+                 market_price=kw.pop("market_price", cost), **kw)
         for i in range(count)
     ]
 

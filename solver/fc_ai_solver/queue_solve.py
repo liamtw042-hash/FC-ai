@@ -18,6 +18,7 @@ from collections import defaultdict
 from ortools.sat.python import cp_model
 
 from .challenge_model import ChallengeImpossible, add_challenge
+from .costs import tally
 from .grind_planner import GrindPlan, PlannerChallenge, plan_grind
 from .repeat_solve import NegativeCostError, ShortfallDiagnosis, _diagnose, _Search
 from .schema import ChemistryConfig, PlacedCard, PoolCard, Requirement
@@ -283,7 +284,6 @@ def solve_queue(
     outcomes: list[ItemOutcome] = []
     total_cost = coins = burned = 0
     index = 0
-    by_id = {card.id: card for card in pool}
     for item in items:
         squads: list[list[PlacedCard]] = []
         cost = 0
@@ -294,17 +294,17 @@ def solve_queue(
                 )
                 squads.append(placements)
                 cost += squad_cost
-                for placement in placements:
-                    coins += by_id[placement.card_id].coins_spent
-                    burned += by_id[placement.card_id].value_burned
             index += 1
         total_cost += cost
+        _, item_coins, item_burned = tally(pool, squads)
+        coins += item_coins
+        burned += item_burned
 
         diagnosis = None
         if len(squads) < item.count:
             diagnosis = _diagnose_in_queue(
                 pool, items, all_usage, solver, slots_of, item, len(squads),
-                min(time_budget_seconds, 10.0), workers,
+                min(time_budget_seconds, 10.0), workers, rating_prices,
             )
         outcomes.append(ItemOutcome(item, len(squads), squads, cost, diagnosis))
 
@@ -369,6 +369,7 @@ def _diagnose_in_queue(
     achieved: int,
     budget: float,
     workers: int,
+    rating_prices: dict[int, int] | None = None,
 ) -> ShortfallDiagnosis:
     """Why this item fell short IN THE QUEUE, which is a different question.
 
@@ -388,7 +389,8 @@ def _diagnose_in_queue(
     is true of the leftovers and useless as advice.
     """
     alone = _Search(
-        pool, target.formation_slots, target.chemistry, target.multisets, budget, workers
+        pool, target.formation_slots, target.chemistry, target.multisets, budget, workers,
+        rating_prices=rating_prices,
     )
     if not alone.feasible(achieved + 1, list(target.requirements), budget):
         # Not the queue's fault. The strongest true statement is about the club.
@@ -397,7 +399,7 @@ def _diagnose_in_queue(
     residual = _residual_pool(pool, items, all_usage, solver, slots_of, target)
     residual_search = _Search(
         residual, target.formation_slots, target.chemistry, target.multisets, budget, workers,
-        price_pool=pool,
+        price_pool=pool, rating_prices=rating_prices,
     )
     diagnosis = _diagnose(residual_search, achieved + 1, list(target.requirements), budget)
     rivals = sorted(

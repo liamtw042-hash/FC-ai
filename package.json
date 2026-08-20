@@ -19,7 +19,10 @@
     "check:branches": "tsx scripts/checkBranchPolicy.ts main",
     "hooks:install": "git config core.hooksPath .githooks && echo \"pre-push hook installed\"",
     "check:clean": "tsx scripts/safeHistory.ts check",
-    "git:reset": "tsx scripts/safeHistory.ts reset"
+    "git:reset": "tsx scripts/safeHistory.ts reset",
+    "fcai": "tsx scripts/fcai.ts",
+    "sample:generate": "tsx scripts/generateSampleData.ts",
+    "quickstart": "tsx scripts/quickstart.ts"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",

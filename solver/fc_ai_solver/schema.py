@@ -39,10 +39,16 @@ class PoolCard(BaseModel):
     quantity: int = Field(default=1, ge=1)
     # Cost of consuming ONE copy. Already includes the duplicate and storage
     # weightings from the cost model, so this service just adds numbers up.
+    # NOT A COIN PRICE. A weighted cost can be 50 for a card worth 4000, and
+    # quoting it as coins is exactly the sort of number that gets acted on.
     cost: int = 0
     # Split for reporting, never blended. Must sum to cost per copy.
     coins_spent: int = 0
     value_burned: int = 0
+    # What one copy would cost to BUY, in coins, if the caller knows. This is the
+    # only field the shortfall diagnosis will price a rating from, short of the
+    # price table. None means genuinely unpriced, and unpriced means no figure.
+    market_price: int | None = None
 
 
 class Requirement(BaseModel):
@@ -164,3 +170,136 @@ class SolveResponse(BaseModel):
     wall_time_seconds: float = 0.0
     # Why no squad exists, when the model itself can say.
     reason: str | None = None
+
+
+class RepeatRequest(BaseModel):
+    """One repeatable SBC, N times, solved jointly. Brief 6.1."""
+
+    pool: list[PoolCard]
+    formation_slots: list[str]
+    requested: int = Field(ge=1)
+    requirements: list[Requirement] = Field(default_factory=list)
+    chemistry: ChemistryConfig | None = None
+    allowed_rating_multisets: list[dict[int, int]] | None = None
+    rating_prices: dict[int, int] | None = None
+    time_budget_seconds: float = 60.0
+    diagnosis_budget_seconds: float = 10.0
+    workers: int = 8
+
+
+class QueueItemRequest(BaseModel):
+    """One entry in a queue: a challenge, how many of it, how much it matters."""
+
+    name: str
+    formation_slots: list[str]
+    requirements: list[Requirement] = Field(default_factory=list)
+    chemistry: ChemistryConfig | None = None
+    multisets: list[dict[int, int]] | None = None
+    kind: Literal["one_off", "set", "repeat"] = "one_off"
+    count: int = Field(default=1, ge=1)
+    priority: int = Field(default=1, ge=1)
+    set_name: str | None = None
+
+
+class QueueRequest(BaseModel):
+    pool: list[PoolCard]
+    items: list[QueueItemRequest]
+    rating_prices: dict[int, int] | None = None
+    time_budget_seconds: float = 60.0
+    workers: int = 8
+    include_plan: bool = True
+
+
+class SupplyShortfallOut(BaseModel):
+    rating: int | None
+    needed: int
+    held: int
+    missing: int
+    unit_cost: int | None
+    # "table", "pool" or "unknown". An unknown basis means NO coin figure is
+    # quoted anywhere downstream, rather than an estimate that reads as a price.
+    basis: str
+    cost_to_close: int | None
+
+
+class ClubLimitOut(BaseModel):
+    name: str
+    asked: int | None
+    best: int | None
+    gap: int | None
+    reachable: bool
+    description: str
+
+
+class DiagnosisOut(BaseModel):
+    mode: str
+    blocking: list[str] = Field(default_factory=list)
+    explanation: str
+    supply: list[SupplyShortfallOut] = Field(default_factory=list)
+    limits: list[ClubLimitOut] = Field(default_factory=list)
+
+
+class SquadOut(BaseModel):
+    placements: list[PlacedCard]
+    cost: int
+
+
+class RepeatResponse(BaseModel):
+    requested: int
+    achieved: int
+    squads: list[SquadOut] = Field(default_factory=list)
+    total_cost: int = 0
+    coins_spent: int = 0
+    value_burned: int = 0
+    proven_optimal: bool = False
+    wall_time_seconds: float = 0.0
+    diagnosis: DiagnosisOut | None = None
+    summary: str = ""
+
+
+class ItemOutcomeOut(BaseModel):
+    name: str
+    kind: str
+    set_name: str | None = None
+    priority: int
+    requested: int
+    achieved: int
+    squads: list[SquadOut] = Field(default_factory=list)
+    cost: int = 0
+    diagnosis: DiagnosisOut | None = None
+
+
+class QueueResponse(BaseModel):
+    items: list[ItemOutcomeOut] = Field(default_factory=list)
+    squads_built: int = 0
+    total_cost: int = 0
+    coins_spent: int = 0
+    value_burned: int = 0
+    complete: bool = False
+    proven_optimal: bool = False
+    wall_time_seconds: float = 0.0
+    plan_summary: str | None = None
+    summary: str = ""
+
+
+class DiagnoseRequest(BaseModel):
+    pool: list[PoolCard]
+    formation_slots: list[str]
+    requirements: list[Requirement] = Field(default_factory=list)
+    chemistry: ChemistryConfig | None = None
+    multisets: list[dict[int, int]] | None = None
+    count: int = Field(default=1, ge=1)
+    # From the rules engine's detectConflicts. Passed through, never derived here.
+    universal_conflicts: list[str] = Field(default_factory=list)
+    time_budget_seconds: float = 10.0
+    workers: int = 8
+
+
+class DiagnoseResponse(BaseModel):
+    kind: str
+    count: int
+    achievable: int | None
+    solvable: bool
+    universal: list[str] = Field(default_factory=list)
+    diagnosis: DiagnosisOut | None = None
+    summary: str

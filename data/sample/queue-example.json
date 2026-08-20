@@ -1,0 +1,7 @@
+{
+  "name": "a Thursday evening",
+  "items": [
+    { "sbc": "eighty five", "kind": "repeat", "count": 10, "priority": 5 },
+    { "sbc": "premier marquee", "kind": "one_off", "priority": 3 }
+  ]
+}
