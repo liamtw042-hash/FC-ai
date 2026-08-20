@@ -53,12 +53,27 @@ class TestDeclinesTheMarginalSquad:
         assert result.total_cost == 33 * 100
 
     def test_a_free_squad_is_still_declined(self):
-        # Zero cost fodder is the boundary case. Building a second squad gains
-        # nothing, and the solver must not do it just because it is allowed to.
+        # Zero cost fodder is the boundary case, and the one that caught a real
+        # gap. With costs alone the objective is INDIFFERENT here: three squads
+        # for nothing is exactly as cheap as one, so the solver was free to build
+        # three and did, intermittently. The count is now a lexicographic tie
+        # break under cost, so fewer squads wins ties and never wins anything else.
         pool = fodder(33, cost=0)
-        result = solve_variable_count(pool, FORMATION, max_squads=3, min_squads=1)
-        assert result.squads_built == 1
-        assert result.total_cost == 0
+        for _ in range(5):
+            result = solve_variable_count(pool, FORMATION, max_squads=3, min_squads=1)
+            assert result.squads_built == 1
+            assert result.total_cost == 0
+
+    def test_the_tie_break_never_overrides_a_real_price_difference(self):
+        # One coin of genuine cost has to outweigh the whole count term, or the
+        # tie break would start choosing worse squads to build fewer of them.
+        cheap = fodder(11, cost=0, prefix="cheap")
+        dear = fodder(22, cost=1, prefix="dear")
+        result = solve_variable_count(cheap + dear, FORMATION, max_squads=3, min_squads=2)
+        # Two squads are required, and the cheapest pair uses all eleven free
+        # cards plus eleven at a coin each.
+        assert result.squads_built == 2
+        assert result.total_cost == 11
 
     def test_it_spends_the_cheap_fodder_first_across_the_whole_run(self):
         # Solved jointly, not one squad at a time. Greedy would burn the cheap

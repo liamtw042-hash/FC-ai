@@ -15,6 +15,7 @@ from .repeat_solve import (
     RepeatOutcome,
     RepeatSolution,
     ShortfallDiagnosis,
+    SupplyShortfall,
     solve_repeat,
     solve_variable_count,
 )
@@ -45,6 +46,7 @@ __all__ = [
     "NegativeCostError",
     "RepeatOutcome",
     "ShortfallDiagnosis",
+    "SupplyShortfall",
     "RepeatSolution",
     "UnsupportedRequirement",
     "UnsupportedSquadSizeError",
