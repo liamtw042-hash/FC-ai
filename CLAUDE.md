@@ -66,6 +66,11 @@ request.
   Enforced by `npm run check:branches`, which fails if any commit on `main` did not
   arrive through a merge from a `feat/` branch. `npm run hooks:install` wires it to
   pre-push so it does not depend on anyone remembering.
+- History operations go through `npm run git:reset -- <ref>`, which refuses when the
+  tree holds tracked changes, or stashes them with `--stash`. `npm run check:clean`
+  reports on its own. A hard reset destroys tracked modifications and leaves
+  untracked files alone, so the guard refuses on the first and only mentions the
+  second.
 - Never commit club data or API keys.
 - No em dashes anywhere.
 

@@ -554,3 +554,60 @@ class TestAStepThatCannotBeCostedIsNotCosted:
         for purchase in eighty_six:
             assert purchase.basis == "table"
             assert purchase.unit_cost == 50_000
+
+
+class TestTheAvoidanceBiasIsStatedWhereTheNumberIs:
+    """The weighting steers the mix away from ratings it cannot price. That makes
+    the quoted cost possibly not the cheapest available, and a caveat only counts
+    if it sits next to the number rather than in a design note."""
+
+    # Two shapes for a squad rating of 85, from the enumerator. One leans on 86s,
+    # the other reaches the same rating with an 87 and no 86s at all. The first
+    # scenario I wrote had every shape needing 86s, so there was no mix to dodge
+    # with and the flag was correctly empty.
+    SHAPES = [{86: 4, 85: 1, 83: 6}, {87: 1, 85: 6, 83: 4}]
+
+    @staticmethod
+    def pool_with_one_unpriced_rating() -> list[PoolCard]:
+        # Nothing rated 86 in the club, so 86 has no price, but the 87 shape can
+        # be filled entirely from stock.
+        return (
+            placeable(87, 12, 6000, "t") + placeable(85, 40, 2600, "m")
+            + placeable(83, 40, 1200, "l")
+        )
+
+    def test_a_priced_mix_that_dodged_an_unpriced_rating_says_so(self):
+        plan = plan_grind(
+            self.pool_with_one_unpriced_rating(),
+            [PlannerChallenge("85 squad", 8, self.SHAPES)],
+        )
+        step = next(s for s in plan.steps if s.is_costable)
+        assert 86 in step.avoided_unpriced
+        described = step.describe()
+        assert "coins per squad" in described, "it is still costed"
+        assert "NOT NECESSARILY THE CHEAPEST" in described
+        assert "avoids rating(s) 86" in described
+        assert "might cost less and nothing here can tell" in described
+
+    def test_the_caveat_disappears_once_the_rating_has_a_price(self):
+        plan = plan_grind(
+            self.pool_with_one_unpriced_rating(),
+            [PlannerChallenge("85 squad", 8, self.SHAPES)],
+            rating_prices={86: 4000},
+        )
+        for step in plan.steps:
+            assert step.avoided_unpriced == []
+            assert "NOT NECESSARILY THE CHEAPEST" not in step.describe()
+
+    def test_a_fully_priced_pool_carries_no_caveat(self):
+        plan = plan_grind(deep_pool(), [PlannerChallenge("85 squad", 4, M85)])
+        assert plan.avoided_unpriced == []
+        for step in plan.steps:
+            assert "NOT NECESSARILY THE CHEAPEST" not in step.describe()
+
+    def test_the_plan_collects_every_rating_it_was_steered_away_from(self):
+        plan = plan_grind(
+            self.pool_with_one_unpriced_rating(),
+            [PlannerChallenge("85 squad", 8, self.SHAPES)],
+        )
+        assert plan.avoided_unpriced == [86]

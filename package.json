@@ -17,7 +17,9 @@
     "crosscheck:generate": "tsx scripts/generate-chemistry-crosscheck.ts",
     "solver:test:fast": "cd solver && python3 -m pytest tests -q -m \"not slow\"",
     "check:branches": "tsx scripts/checkBranchPolicy.ts main",
-    "hooks:install": "git config core.hooksPath .githooks && echo \"pre-push hook installed\""
+    "hooks:install": "git config core.hooksPath .githooks && echo \"pre-push hook installed\"",
+    "check:clean": "tsx scripts/safeHistory.ts check",
+    "git:reset": "tsx scripts/safeHistory.ts reset"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",
