@@ -1,0 +1,13 @@
+# Normalise line endings in the repository. Without this, Git for Windows checks
+# out with CRLF by default and two things break.
+* text=auto
+
+# THE GIT HOOKS MUST KEEP LF. Git runs them with its bundled sh, and a shebang
+# line ending in CR fails with "bad interpreter: /bin/sh^M", which is a confusing
+# way to be told the hook did not run at all.
+.githooks/* text eol=lf
+*.sh text eol=lf
+
+# The CSV reader handles CRLF, so the sample data is not sensitive either way,
+# but keeping it LF means a regenerated file diffs against the committed one.
+*.csv text eol=lf

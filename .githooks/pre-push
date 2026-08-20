@@ -1,6 +1,12 @@
 #!/bin/sh
 # Refuses a push whose main history contains a commit that did not come through a
 # feat/ branch. Installed with: npm run hooks:install
+#
+# `node` against tsx's own entry point rather than `npx tsx`. Git for Windows runs
+# hooks under its bundled sh, where resolving the `npx.cmd` shim depends on how
+# that sh was configured; `node` is a real executable everywhere and the entry
+# point is the same file on every platform.
 set -e
+root=$(git rev-parse --show-toplevel)
 echo "Checking branch policy before push..."
-npx tsx scripts/checkBranchPolicy.ts main
+node "$root/node_modules/tsx/dist/cli.mjs" "$root/scripts/checkBranchPolicy.ts" main

@@ -10,14 +10,14 @@
     "fixture:template": "tsx scripts/fixtures.ts template",
     "fixture:add": "tsx scripts/fixtures.ts add",
     "fixture:check": "tsx scripts/fixtures.ts check",
-    "solver:install": "pip install -r solver/requirements.txt",
-    "solver:test": "cd solver && python3 -m pytest tests -q",
-    "solver:dev": "cd solver && python3 -m uvicorn fc_ai_solver.app:app --host 127.0.0.1 --port 8000 --reload",
+    "solver:install": "tsx scripts/python.ts -m pip install -r solver/requirements.txt",
+    "solver:test": "tsx scripts/python.ts --cwd solver -m pytest tests -q",
+    "solver:dev": "tsx scripts/python.ts --cwd solver -m uvicorn fc_ai_solver.app:app --host 127.0.0.1 --port 8000 --reload",
     "test:all": "npm run typecheck && npm run test && npm run check:branches && npm run solver:test",
     "crosscheck:generate": "tsx scripts/generate-chemistry-crosscheck.ts",
-    "solver:test:fast": "cd solver && python3 -m pytest tests -q -m \"not slow\"",
+    "solver:test:fast": "tsx scripts/python.ts --cwd solver -m pytest tests -q -m \"not slow\"",
     "check:branches": "tsx scripts/checkBranchPolicy.ts main",
-    "hooks:install": "git config core.hooksPath .githooks && echo \"pre-push hook installed\"",
+    "hooks:install": "git config core.hooksPath .githooks",
     "check:clean": "tsx scripts/safeHistory.ts check",
     "git:reset": "tsx scripts/safeHistory.ts reset",
     "fcai": "tsx scripts/fcai.ts",
@@ -26,7 +26,8 @@
     "dev": "tsx scripts/dev.ts",
     "build": "next build",
     "start": "next start -p 3000",
-    "web:dev": "next dev -p 3000"
+    "web:dev": "next dev -p 3000",
+    "python": "tsx scripts/python.ts"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",
@@ -44,5 +45,8 @@
     "next": "^15.5.23",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
+  },
+  "engines": {
+    "node": ">=20.11.0"
   }
 }
