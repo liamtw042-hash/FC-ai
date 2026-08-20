@@ -43,7 +43,13 @@ from collections import defaultdict
 
 from ortools.sat.python import cp_model
 
-from .repeat_solve import ShortfallDiagnosis, _diagnose, _Search
+from .repeat_solve import (
+    ShortfallDiagnosis,
+    SupplyShortfall,
+    _diagnose,
+    _Search,
+    _supply_diagnosis,
+)
 from .schema import ChemistryConfig, PoolCard, Requirement
 from .squad_size import SQUAD_SIZE
 
@@ -126,11 +132,32 @@ class GrindStep:
         )
 
 
+class DepthBlock:
+    """What blocks one specific squad depth."""
+
+    def __init__(self, depth: int, mode: str, explanation: str) -> None:
+        self.depth = depth
+        self.mode = mode
+        self.explanation = explanation
+
+    @property
+    def is_requirement(self) -> bool:
+        return self.mode in ("requirement", "requirement_pair")
+
+
 class RequirementBlock:
     """A challenge the club can feed but the solver cannot build.
 
-    Carries the reason, because a warning without one is exactly where someone
-    buys anyway with a confident coin figure sitting next to it.
+    BLOCKING IS PER SQUAD, NOT PER CHALLENGE.
+
+    A requirement that stops squad 3 does not necessarily stop squad 5. If it
+    binds only at 3 and 4, then cards really would unlock 5 and 6 once the
+    requirement is dealt with, and flagging the whole challenge hides that.
+
+    So each depth from the first unbuildable squad up to what was asked for is
+    diagnosed separately. Where a requirement binds, no purchase is quoted. Where
+    supply binds deeper in, the need IS reported, with the requirement named as a
+    precondition, so nobody buys the cards and still gets nothing.
     """
 
     def __init__(
@@ -138,31 +165,81 @@ class RequirementBlock:
         name: str,
         achieved: int,
         supply_ceiling: int,
-        diagnosis: ShortfallDiagnosis | None,
+        depths: list[DepthBlock],
+        conditional_supply: list[SupplyShortfall],
+        probed_to: int,
+        diagnosis: ShortfallDiagnosis | None = None,
     ) -> None:
         self.name = name
         self.achieved = achieved
         self.supply_ceiling = supply_ceiling
+        self.depths = depths
+        # What would be needed at the deeper squads where supply is the cause.
+        # Only meaningful once the requirement above has been cleared.
+        self.conditional_supply = conditional_supply
+        self.probed_to = probed_to
         self.diagnosis = diagnosis
+
+    @property
+    def requirement_depths(self) -> list[int]:
+        return [d.depth for d in self.depths if d.is_requirement]
+
+    @property
+    def supply_depths(self) -> list[int]:
+        return [d.depth for d in self.depths if d.mode == "supply"]
+
+    @property
+    def requirement_binds_through(self) -> int | None:
+        """The deepest squad a requirement blocks, counting from the first one."""
+        contiguous = None
+        expected = self.achieved + 1
+        for depth in self.depths:
+            if depth.depth != expected or not depth.is_requirement:
+                break
+            contiguous = depth.depth
+            expected += 1
+        return contiguous
+
+    @property
+    def binds_all_the_way(self) -> bool:
+        """No depth probed had supply as its cause, so no purchase helps at all."""
+        return not self.supply_depths
 
     def describe(self) -> str:
         head = (
-            f"{self.name}: buying cards would not help. The club can feed "
-            f"{self.supply_ceiling} squads but only {self.achieved} can be built"
+            f"{self.name}: the club can feed {self.supply_ceiling} squads but only "
+            f"{self.achieved} can be built"
         )
-        if self.diagnosis is None:
+        if not self.depths:
             return (
                 f"{head}, and no formation or requirements were supplied for this "
                 f"challenge, so the plan cannot say what is blocking it"
             )
-        if self.diagnosis.mode == "unexplained":
-            return (
-                f"{head}. Squad {self.achieved + 1} is blocked by something the "
-                f"diagnosis could not name: {self.diagnosis.explanation}. Buying cards "
-                f"is not the answer, and neither is loosening any single requirement"
+
+        first = self.depths[0]
+        if first.mode == "unexplained":
+            lead = (
+                f"Squad {first.depth} is blocked by something the diagnosis could not "
+                f"name: {first.explanation}. Buying cards is not the answer, and neither "
+                f"is loosening any single requirement"
             )
+        else:
+            lead = f"Squad {first.depth} is blocked by {first.explanation}"
+
+        if self.binds_all_the_way:
+            return f"{head}. Buying cards would not help. {lead}"
+
+        deeper = self.supply_depths
+        span = (
+            f"squad {deeper[0]}"
+            if len(deeper) == 1
+            else f"squads {deeper[0]} to {deeper[-1]}"
+        )
+        needs = "; ".join(s.describe(deeper[-1]) for s in self.conditional_supply)
         return (
-            f"{head}. Squad {self.achieved + 1} is blocked by {self.diagnosis.explanation}"
+            f"{head}. {lead}. Beyond that, {span} would also need cards: {needs}. "
+            f"Clearing the requirement above is a PRECONDITION. Buying those cards on "
+            f"their own unlocks nothing"
         )
 
 
@@ -295,24 +372,38 @@ def _model(
     return model, squads, add, unit
 
 
-def _diagnose_block(
+def _diagnose_depths(
     pool: list[PoolCard],
     challenge: PlannerChallenge,
     achieved: int,
     budget: float,
-) -> ShortfallDiagnosis | None:
-    """Why the solver cannot build the squad after the one it managed."""
+    max_depth_probes: int,
+) -> tuple[list[DepthBlock], list[SupplyShortfall], int]:
+    """Diagnose each squad depth separately, not just the first unbuildable one.
+
+    A requirement that blocks squad 3 may not block squad 5. Probing only the
+    first one and flagging the whole challenge hides a purchase that would really
+    work once the requirement is dealt with.
+    """
     if not challenge.can_be_diagnosed:
-        return None
+        return [], [], achieved
+
     search = _Search(
-        pool,
-        challenge.formation_slots,
-        challenge.chemistry,
-        challenge.multisets,
-        budget,
-        8,
+        pool, challenge.formation_slots, challenge.chemistry, challenge.multisets, budget, 8
     )
-    return _diagnose(search, achieved + 1, list(challenge.requirements), budget)
+    requirements = list(challenge.requirements)
+    probe_to = min(challenge.requested, achieved + max_depth_probes)
+
+    depths: list[DepthBlock] = []
+    for depth in range(achieved + 1, probe_to + 1):
+        diagnosis = _diagnose(search, depth, requirements, budget)
+        depths.append(DepthBlock(depth, diagnosis.mode, diagnosis.explanation))
+
+    supply_depths = [d.depth for d in depths if d.mode == "supply"]
+    conditional: list[SupplyShortfall] = []
+    if supply_depths:
+        conditional = _supply_diagnosis(pool, challenge.multisets, supply_depths[-1])
+    return depths, conditional, probe_to
 
 
 def plan_grind(
@@ -322,6 +413,7 @@ def plan_grind(
     max_extra_steps: int = 3,
     known_achievable: dict[str, int] | None = None,
     time_budget_seconds: float = 5.0,
+    max_depth_probes: int = 4,
 ) -> GrindPlan:
     """What the club can feed now, and the cheapest way to feed more."""
     if not challenges:
@@ -364,12 +456,17 @@ def plan_grind(
             if achieved is None or achieved >= ceiling[challenge.name]:
                 continue
             pinned[challenge.name] = achieved
+            depths, conditional, probed_to = _diagnose_depths(
+                pool, challenge, achieved, time_budget_seconds, max_depth_probes
+            )
             blocks.append(
                 RequirementBlock(
                     name=challenge.name,
                     achieved=achieved,
                     supply_ceiling=ceiling[challenge.name],
-                    diagnosis=_diagnose_block(pool, challenge, achieved, time_budget_seconds),
+                    depths=depths,
+                    conditional_supply=conditional,
+                    probed_to=probed_to,
                 )
             )
 

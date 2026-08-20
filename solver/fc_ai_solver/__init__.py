@@ -11,6 +11,7 @@ from .schema import (
     SolveResponse,
 )
 from .grind_planner import (
+    DepthBlock,
     GrindPlan,
     GrindStep,
     PlannerChallenge,
@@ -52,6 +53,7 @@ __all__ = [
     "SolveResponse",
     "SQUAD_SIZE",
     "ChallengeImpossible",
+    "DepthBlock",
     "GrindPlan",
     "GrindStep",
     "PlannerChallenge",

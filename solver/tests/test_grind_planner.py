@@ -8,7 +8,12 @@ from __future__ import annotations
 
 import pytest
 
+# Depth probing runs a diagnosis per squad, so these are among the slower tests.
+# `pytest -m "not slow"` skips them while iterating.
+pytestmark = pytest.mark.slow
+
 from fc_ai_solver import (
+    DepthBlock,
     PlannerChallenge,
     PoolCard,
     Requirement,
@@ -218,9 +223,10 @@ class TestAFlagCarriesItsReason:
         (block,) = plan.blocks
         assert block.achieved == 2
         assert block.supply_ceiling == 4
-        assert block.diagnosis is not None
-        assert block.diagnosis.mode == "requirement"
-        assert block.diagnosis.blocking == ["totwCount min 1"]
+        assert block.depths
+        assert block.depths[0].depth == 3
+        assert block.depths[0].mode == "requirement"
+        assert "totwCount min 1" in block.depths[0].explanation
 
     def test_and_the_message_names_the_blocker_rather_than_warning_vaguely(self):
         pool = totw_starved_pool()
@@ -231,7 +237,7 @@ class TestAFlagCarriesItsReason:
             known_achievable={"85 TOTW squad": 2},
         )
         described = plan.blocks[0].describe()
-        assert "buying cards would not help" in described
+        assert "Buying cards would not help" in described
         assert "Squad 3 is blocked by totwCount min 1" in described
 
     def test_without_the_inputs_to_diagnose_it_says_so_rather_than_guessing(self):
@@ -243,7 +249,7 @@ class TestAFlagCarriesItsReason:
             known_achievable={"85 squad": 1},
         )
         (block,) = plan.blocks
-        assert block.diagnosis is None
+        assert block.depths == []
         assert "cannot say what is blocking it" in block.describe()
 
     def test_an_unexplained_diagnosis_is_reported_as_unexplained(self):
@@ -251,10 +257,12 @@ class TestAFlagCarriesItsReason:
             name="odd one",
             achieved=2,
             supply_ceiling=5,
-            diagnosis=ShortfallDiagnosis(
-                mode="unexplained", blocking=[], contributions=[],
-                explanation="no single requirement and no pair explains it",
-            ),
+            depths=[
+                DepthBlock(3, "unexplained", "no single requirement and no pair explains it"),
+                DepthBlock(4, "unexplained", "no single requirement and no pair explains it"),
+            ],
+            conditional_supply=[],
+            probed_to=4,
         )
         described = block.describe()
         assert "could not name" in described
@@ -354,3 +362,108 @@ class TestAQueueWhereNothingIsUnflagged:
         assert not plan.queue_is_requirement_blocked
         assert "Best value purchase" in plan.summary()
         assert "coins per squad" in plan.summary()
+
+
+def deep_at_every_rating() -> list[PoolCard]:
+    """Ratings are plentiful, so the TOTW requirement is the only thing biting."""
+    return (
+        placeable(86, 40, 4000, "h") + placeable(85, 40, 2600, "m")
+        + placeable(83, 80, 1200, "l") + placeable(82, 80, 900, "x")
+        + placeable(83, 2, 1500, "totw", card_type="totw", is_totw=True, is_rare=True)
+    )
+
+
+def thin_at_the_top() -> list[PoolCard]:
+    """Enough ratings for four squads and no more, plus two TOTW cards."""
+    return (
+        placeable(86, 13, 4000, "h") + placeable(85, 16, 2600, "m")
+        + placeable(83, 30, 1200, "l") + placeable(82, 20, 900, "x")
+        + placeable(83, 2, 1500, "totw", card_type="totw", is_totw=True, is_rare=True)
+    )
+
+
+class TestBlockingIsPerSquadNotPerChallenge:
+    """A requirement that stops squad 3 does not necessarily stop squad 5.
+
+    Diagnosing only the first unbuildable squad and flagging the whole challenge
+    hides a purchase that really would work once the requirement is dealt with.
+    """
+
+    def test_when_the_requirement_binds_all_the_way_nothing_changes(self):
+        # Ratings are plentiful, so removing the TOTW requirement unlocks every
+        # depth asked for. There is no supply story at any depth and the plan
+        # should not invent one.
+        plan = plan_grind(
+            deep_at_every_rating(),
+            [PlannerChallenge("85 TOTW squad", 5, M85, formation_slots=FORMATION,
+                              requirements=TOTW_REQ)],
+            known_achievable={"85 TOTW squad": 2},
+        )
+        (block,) = plan.blocks
+        assert [d.mode for d in block.depths] == ["requirement"] * 3
+        assert block.requirement_binds_through == 5
+        assert block.binds_all_the_way
+        assert block.supply_depths == []
+        assert block.conditional_supply == []
+
+        described = block.describe()
+        assert "Buying cards would not help" in described
+        assert "Squad 3 is blocked by totwCount min 1" in described
+        assert "PRECONDITION" not in described, "there is no deeper purchase to caveat"
+
+    def test_when_it_binds_at_three_and_four_the_deeper_supply_need_is_reported(self):
+        plan = plan_grind(
+            thin_at_the_top(),
+            [PlannerChallenge("85 TOTW squad", 6, M85, formation_slots=FORMATION,
+                              requirements=TOTW_REQ)],
+            known_achievable={"85 TOTW squad": 2},
+        )
+        (block,) = plan.blocks
+        assert [(d.depth, d.mode) for d in block.depths] == [
+            (3, "requirement"), (4, "requirement"), (5, "supply"), (6, "supply"),
+        ]
+        assert block.requirement_binds_through == 4
+        assert not block.binds_all_the_way
+        assert block.supply_depths == [5, 6]
+        assert block.conditional_supply, "the deeper squads have a card need to report"
+
+    def test_and_the_precondition_is_stated_so_the_cards_are_not_bought_alone(self):
+        plan = plan_grind(
+            thin_at_the_top(),
+            [PlannerChallenge("85 TOTW squad", 6, M85, formation_slots=FORMATION,
+                              requirements=TOTW_REQ)],
+            known_achievable={"85 TOTW squad": 2},
+        )
+        described = plan.blocks[0].describe()
+        assert "Squad 3 is blocked by totwCount min 1" in described
+        assert "squads 5 to 6 would also need cards" in described
+        assert "rated 86" in described
+        # The whole point: buying without clearing the requirement gets nothing.
+        assert "PRECONDITION" in described
+        assert "Buying those cards on their own unlocks nothing" in described
+
+    def test_the_deeper_need_is_still_not_a_shopping_list_entry(self):
+        # It is reported inside the block's explanation, never as a quoted step,
+        # because the challenge still cannot grow until the requirement is cleared.
+        plan = plan_grind(
+            thin_at_the_top(),
+            [PlannerChallenge("85 TOTW squad", 6, M85, formation_slots=FORMATION,
+                              requirements=TOTW_REQ)],
+            known_achievable={"85 TOTW squad": 2},
+        )
+        assert plan.queue_is_requirement_blocked
+        assert plan.steps == []
+        for step in plan.steps:
+            assert step.unlocks["85 TOTW squad"] == 0
+
+    def test_probing_is_bounded_and_says_how_far_it_looked(self):
+        plan = plan_grind(
+            deep_at_every_rating(),
+            [PlannerChallenge("85 TOTW squad", 20, M85, formation_slots=FORMATION,
+                              requirements=TOTW_REQ)],
+            known_achievable={"85 TOTW squad": 2},
+            max_depth_probes=2,
+        )
+        (block,) = plan.blocks
+        assert block.probed_to == 4
+        assert [d.depth for d in block.depths] == [3, 4]
