@@ -3,7 +3,7 @@ import { consume, ledgerByRating, record, totals, type LedgerEntry } from '../..
 import { history, persist, resolveClub, saveHistory, state } from '../../lib/server'
 
 interface SubmittedSquad {
-  players: { name: string; rating: number }[]
+  players: { cardId: string; name: string; rating: number }[]
 }
 
 export function GET(): NextResponse {
@@ -39,17 +39,21 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   const current = state()
   const { resolved } = resolveClub(current.club, current.cards)
-  // Matched by name and rating, which is what the returned squad carries. A
-  // mismatch is reported rather than skipped.
+  // MATCHED ON THE STACK ID, not on name and rating. Name plus rating does not
+  // identify a stack: a base gold and a special card can share both, and taking
+  // the first that matches would consume the wrong one and leave the club wrong
+  // in a way nobody would notice until a later solve failed.
+  const byId = new Map(resolved.map((card) => [card.owned.id, card]))
   const used = new Map<string, LedgerEntry>()
   for (const player of squad.players) {
-    const card = resolved.find(
-      (candidate) =>
-        candidate.definition.name === player.name && candidate.definition.rating === player.rating,
-    )
+    const card = player.cardId === undefined ? undefined : byId.get(player.cardId)
     if (card === undefined) {
       return NextResponse.json(
-        { error: `${player.name} (${player.rating}) is no longer in the club, so nothing was recorded` },
+        {
+          error:
+            `${player.name} (${player.rating}) is no longer in the club under the id the ` +
+            `solve returned, so NOTHING was recorded. Re-solve and submit that result.`,
+        },
         { status: 409 },
       )
     }

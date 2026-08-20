@@ -940,6 +940,12 @@ def _minimal_blocking_set(
     Returns None when the requirements are not the cause at all, which the filter
     detects for free: if the problem is still infeasible with EVERY requirement
     removed, no subset of them explains anything.
+
+    ONE MINIMAL SET, NOT ALL OF THEM. A deletion filter returns whichever minimal
+    infeasible subset its drop order happens to reach, and a challenge can hold
+    several. Enumerating them all is exponential and the wording downstream says
+    "this is ONE minimal conflicting set and there may be others" rather than
+    implying it found the only one.
     """
     if not search.feasible(target_count, [], probe_budget):
         return None
@@ -1084,7 +1090,8 @@ def _diagnose(
                 f"club: {', '.join(names)}. No proper subset of them is impossible, so "
                 f"every one of them takes part. That is why removing them one and two at "
                 f"a time found nothing. Dropping any single one settles THIS conflict, "
-                f"though the challenge may still fail on another"
+                f"though the challenge may still fail on another: this is ONE minimal "
+                f"conflicting set and there may be others the filter did not look for"
             )
         return stamp(ShortfallDiagnosis(
             mode=mode,

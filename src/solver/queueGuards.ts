@@ -31,9 +31,30 @@ export class MixedSquadSizeError extends Error {
   }
 }
 
+export class ConflictingSquadSizeError extends Error {
+  constructor(readonly sizes: number[]) {
+    super(
+      `this challenge states more than one squad size: ${sizes.join(', ')}. Taking the ` +
+        `first would silently drop the others, and one of them is what the game will ` +
+        `actually enforce.`,
+    )
+    this.name = 'ConflictingSquadSizeError'
+  }
+}
+
+/**
+ * The squad size a challenge states, or the default when it states none.
+ *
+ * REFUSES a challenge that states two DIFFERENT sizes. Taking the first match is
+ * the reflex, and it is wrong here: the second requirement is real, it came from
+ * the same SBC, and dropping it means solving a challenge the game will reject.
+ * Two requirements stating the SAME size are a harmless duplicate and pass.
+ */
 export function squadSizeOf(requirements: readonly Requirement[]): number {
-  const stated = requirements.find((r) => r.type === 'squadSize')
-  return stated === undefined ? SQUAD_SIZE : stated.value
+  const stated = requirements.filter((r) => r.type === 'squadSize').map((r) => r.value)
+  const distinct = [...new Set(stated)]
+  if (distinct.length > 1) throw new ConflictingSquadSizeError(distinct)
+  return distinct[0] ?? SQUAD_SIZE
 }
 
 export function assertUniformSquadSize(challenges: readonly QueuedChallenge[]): void {

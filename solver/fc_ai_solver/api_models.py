@@ -64,6 +64,15 @@ def repeat_out(outcome: RepeatOutcome, pool) -> RepeatResponse:
     tail = ""
     if outcome.diagnosis is not None:
         tail = f". Squad {outcome.achieved + 1} blocked by {outcome.diagnosis.explanation}"
+        # The diagnosis is about the next squad only. Deeper ones are a separate
+        # question and the planner is what answers it per depth; saying nothing
+        # here reads as "and the same for the rest", which was not checked.
+        remaining = outcome.requested - outcome.achieved
+        if remaining > 1:
+            tail += (
+                f". Squads {outcome.achieved + 2} to {outcome.requested} were NOT probed "
+                f"separately, so what blocks them is unknown rather than the same thing"
+            )
     elif outcome.shortfall_reason:
         tail = f". {outcome.shortfall_reason}"
     return RepeatResponse(

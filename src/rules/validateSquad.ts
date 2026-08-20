@@ -7,6 +7,7 @@
  */
 
 import type { Requirement, RequirementResult, CountOp, MinMaxOp } from '../types/requirements'
+import { isKnownRequirementType } from '../types/requirements'
 import type { PlacedPlayer, Squad } from '../types/squad'
 import { calculateChemistry } from './chemistry'
 import { calculateSquadRating } from './squadRating'
@@ -55,6 +56,22 @@ export function validateSquad(squad: Squad, requirements: readonly Requirement[]
   const nations = countBy(players, (p) => p.card.definition.nation)
 
   return requirements.map((requirement): RequirementResult => {
+    // THE SWITCH BELOW IS EXHAUSTIVE OVER THE UNION, WHICH IS NOT THE SAME AS
+    // EXHAUSTIVE OVER WHAT ARRIVES. Requirements come from pasted SBC text, from
+    // JSON on disk and from HTTP bodies, none of which the compiler has seen. A
+    // type outside the union used to fall off the end of the switch and come back
+    // as `undefined` in the results list, which rendered as a null row and made
+    // `squadPasses` throw. The Python side raises UnsupportedRequirement loudly
+    // for exactly this, and the two have to agree.
+    if (!isKnownRequirementType((requirement as { type: string }).type)) {
+      return {
+        requirement,
+        passed: false,
+        achieved: 'NOT CHECKED: this build does not know this requirement type',
+        required: (requirement as { type: string }).type,
+      }
+    }
+
     const result = (passed: boolean, achieved: number | string | null, required: number | string | null) => ({
       requirement,
       passed,
@@ -245,6 +262,23 @@ export function validateSquad(squad: Squad, requirements: readonly Requirement[]
   })
 }
 
+/**
+ * True only when every requirement was CHECKED and passed.
+ *
+ * An unchecked requirement returns `passed: false`, so a squad carrying one can
+ * never pass here. That is the safe direction: the alternative is a squad that
+ * looks valid because nobody looked.
+ */
 export function squadPasses(squad: Squad, requirements: readonly Requirement[]): boolean {
   return validateSquad(squad, requirements).every((r) => r.passed)
+}
+
+/** The requirements that could not be checked at all, as opposed to failing. */
+export function uncheckedRequirements(
+  squad: Squad,
+  requirements: readonly Requirement[],
+): RequirementResult[] {
+  return validateSquad(squad, requirements).filter(
+    (result) => typeof result.achieved === 'string' && result.achieved.startsWith('NOT CHECKED'),
+  )
 }

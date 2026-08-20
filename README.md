@@ -47,14 +47,17 @@ the rating enumerator, the CP-SAT solve with chemistry and placement, the cost
 model, multi solution diversity, repeat, set and queue modes, the grind planner
 and the impossibility diagnosis. The command line drives all of it.
 
-**Blocked, and staying blocked:**
+**Blocked, and staying blocked: the whole intake path.** Both blockers are one
+signup, `PENDING.md` P-003.
 
 - **Checkpoint 2, the real player database loader.** Needs a FutDB key and the
-  real rate limits, and neither may be invented. `data/sample/` is a synthetic
-  stand in so everything downstream can be run today. It is not evidence about
-  anything.
+  real rate limits, and neither may be invented.
 - **Checkpoint 13, screenshot OCR.** Needs checkpoint 2's database to match names
   against. There is no placeholder OCR path and no synthesised database.
+
+Until then the only way cards get in is a CSV you produce yourself, and
+`data/sample/` is a synthetic stand in so everything downstream can be run today.
+A result on it is evidence about the pipeline and nothing else.
 
 Checkpoint 14, the UI, is built: club, intake, SBC library with the paste parser,
 queue and solve, results, grind planner, history with the fodder ledger, and

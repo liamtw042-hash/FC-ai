@@ -7,6 +7,8 @@ export interface SquadView {
   chemistry: number
   cost: number
   players: {
+    /** The owned stack, so the submission write back takes the right one. */
+    cardId: string
     slot: string
     rating: number
     name: string

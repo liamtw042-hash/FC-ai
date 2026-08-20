@@ -817,6 +817,59 @@ strength of its output wording, and the code said something different. The first
 the same reversal in its item 5, on prices. Reading what a path prints is not the same as
 reading what it does.
 
+### 8.12 The lossy reduction sweep, and a change to how auditing is done
+
+`LOSSY-REDUCTION-SWEEP.md`. Five defects in this project turned out to be one pattern:
+singles missing pairs, a requirement-only diagnosis missing supply, the next squad standing
+in for the challenge, contention as a fifth cause, and `feasible: bool` over four CP-SAT
+states. Every one was found by hitting it. So the sweep asks the question of the code
+instead, in three forms: is a multi-state result reduced to a bool or a `None`, is the first
+of many returned as the only one, does one depth or branch stand for the whole.
+
+Three more instances found, and the worst of them was in a file the previous audit had
+already fixed.
+
+**`plan_grind`'s inner `solve()` returned `None` for both INFEASIBLE and UNKNOWN.** The
+second audit fixed the caller and not the reducer, so "could not solve inside its time
+budget" was printed for a model proved impossible in a millisecond. Fixing a caller is not
+fixing the reducer, and the reducer is where the next instance will be.
+
+**`validateSquad`'s switch is exhaustive over the union and requirements arrive at runtime.**
+A type outside the union fell off the end and came back as `undefined`, rendering as a null
+row and making `squadPasses` throw. The asymmetry is what makes it serious: the PYTHON side
+raises `UnsupportedRequirement` loudly for exactly this, so that a dropped constraint cannot
+return a squad the game rejects, while the authoritative TypeScript side returned nothing at
+all. `REQUIREMENT_TYPES` is now the union as runtime values, with a `satisfies` clause and a
+`MissingFromList` conditional type so the list cannot drift from the union without failing
+the build.
+
+**The submission write back matched on name and rating**, which does not identify a stack: a
+base gold and a special card can share both. `SquadView` now carries the card id.
+
+### 8.13 The audit method, changed rather than the finding
+
+Two output paths have now been cleared by reading what they print, and both times the code
+said something different: `solve_alternatives` in the second audit, and `_supply_diagnosis`
+prices in the first. Reading the code is not enough either. What settles it is FORCING the
+degraded state and asserting the string that comes out.
+
+`solver/tests/test_degraded_states.py` and `src/rules/degradedStates.test.ts` are that
+method as test files. Every claim-bearing output string has an entry, and each entry
+constructs the timeout, the infeasibility or the empty case for real. The rule for adding to
+them: **if a function returns a sentence a person will act on, it belongs there with its
+degraded state forced.**
+
+Two details that matter more than they look:
+
+- **No `pytest.skip` in the timeout tests.** A skipped test looks like a passing one, which
+  is the same pattern the file exists to catch. No machine solves a 240 card ten squad model
+  in a microsecond, so the forced state is a hard assertion with the message "the timeout
+  was not forced".
+- **The assertions were mutation tested.** Reverting the planner fix fails two of them;
+  making `formatDiagnosis` quote a price for an unpriced shortfall fails another; making
+  `relaxationOffer` always offer fails a fourth. An assertion that passes against broken code
+  is not evidence.
+
 ## 9. Still open
 
 | Ref | Item | Status |
