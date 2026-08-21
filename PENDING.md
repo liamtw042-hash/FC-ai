@@ -26,6 +26,7 @@ Cleared in batches. Status is `open` until a reading comes back.
 | P-005 | nothing. Wrong means club and league links are mis-scored | the game, two Concept Squads |
 | P-006 | nothing. Wrong means nation links are mis-scored | the game, one Concept Squad |
 | P-007, P-008 | nothing. Both are the top step of a ladder | the game, two Concept Squads |
+| **P-009** | nothing, but it is the only entry where a wrong value makes returned squads INVALID rather than mis-scored | the game, one Concept Squad |
 
 ---
 
@@ -237,3 +238,50 @@ that is fine, and the warning will keep saying the step is unverified rather tha
 pretending otherwise.
 
 **No fixture**, for the same reason as P-007.
+
+---
+
+## P-009 One copy of a player per squad, and what counts as the same player
+
+**Status:** open, and unlike the others a wrong value here makes returned squads **invalid**
+rather than mis-scored.
+**Needs:** the game open, Concept Squad only, no card ownership required.
+
+**Do, part one.** Start a Concept Squad and try to add the SAME card to two different slots.
+**Report:** whether the game lets you.
+
+**Do, part two, which is the half that is actually open.** Add a base version of a player to
+one slot, then try to add a DIFFERENT version of the same footballer, an in form or a promo
+card of the same person, to another slot.
+**Report:** whether the game lets you.
+
+**Expected:** blocked in both cases.
+
+**Why it matters.** The solver used to field one stack of eleven duplicates as an entire
+squad, which is where this came from. A per squad limit of one is now enforced, keyed on the
+CARD DEFINITION, so two copies of the same card cannot both be used. Across different squads
+is untouched and always will be: a stack of four 84s feeding four squads is the normal way a
+repeatable SBC is fed.
+
+Part two decides whether that key is the right one. If the game blocks by FOOTBALLER rather
+than by card version, keying on the card definition is too weak and the solver will keep
+returning squads the game rejects, pairing a base gold with a TOTW of the same person.
+
+**And if part two is blocked, there is a second job.** This card database has no footballer
+id. A `CardDefinition` carries a `defId` and a `name`, and names are not unique between real
+players, so the stricter rule is not expressible today. It would need a player id from the
+card database, which lands with checkpoint 2. The change would be to `playerKeyOf` in
+`src/rules/squadRules.ts` and to nothing in the solver, which is told the key rather than
+deriving it.
+
+**What the evidence is now, and why it is not enough.** Secondary sources only, none of them
+readable at source from here: every relevant domain is blocked by the egress proxy, the same
+denial recorded in RESEARCH 0.1. A FIFA 15 FAQ, seen only as a search snippet, says two cards
+of one player must be placed in different squads and mentions a base and an in form card
+needing different teams, which points at the stricter reading. An EA forum thread from FC 25
+is titled "Can not add duplicate player from SBC storage to my squad", which points at the
+rule existing today. Neither is an in game reading, and a search snippet about FIFA 15 is not
+a statement about FC 26.
+
+**Unblocks:** `verified: false` on rule fact `squad:one_copy_per_player`, and the choice of
+key in `playerKeyOf`.

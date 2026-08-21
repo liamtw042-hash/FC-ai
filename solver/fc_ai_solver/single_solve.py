@@ -128,7 +128,8 @@ def solve_single(request: SolveRequest) -> SolveResponse:
 
     try:
         slot_chemistry, squad_chemistry = add_challenge(
-            model, pool, slots, usage, place, request.requirements, request.chemistry
+            model, pool, slots, usage, place, request.requirements, request.chemistry,
+            max_copies_per_squad=request.max_copies_per_squad,
         )
     except ChallengeImpossible as error:
         return SolveResponse(status="infeasible", reason=str(error))
@@ -165,7 +166,7 @@ def solve_single(request: SolveRequest) -> SolveResponse:
                         slot_index=s,
                         slot_position=slots[s],
                         in_position=slots[s] in pool[i].positions,
-                        chemistry=solver.Value(slot_chemistry[s]) if slot_chemistry else 0,
+                        chemistry=solver.Value(slot_chemistry[s]) if slot_chemistry else None,
                     )
                 )
                 break

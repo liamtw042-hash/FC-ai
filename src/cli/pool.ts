@@ -25,6 +25,7 @@ import {
   type AvailabilityReport,
   type ExclusionSettings,
 } from '../rules/exclusions'
+import { playerKeyOf } from '../rules/squadRules'
 import { costOf } from '../solver/costModel'
 import { DEFAULT_COST_WEIGHTS, type CostWeights, type ResolvedPrice } from '../types/solver'
 
@@ -43,6 +44,12 @@ export interface WirePoolCard {
   is_evolved: boolean
   is_womens: boolean
   quantity: number
+  /**
+   * Which cards count as the same player for the per squad copy limit. Always
+   * set, so the solver refuses a pool that arrived without one rather than
+   * silently allowing a repeat. See src/rules/squadRules.ts.
+   */
+  player_key: string
   /** The weighted figure the solver minimises. NOT a coin price. */
   cost: number
   coins_spent: number
@@ -139,6 +146,7 @@ export function buildPool(
       is_evolved: card.owned.isEvolved,
       is_womens: card.definition.isWomens,
       quantity: card.owned.quantity,
+      player_key: playerKeyOf(card.definition),
       cost: cost.solverCost,
       coins_spent: cost.coinsSpent,
       value_burned: cost.valueBurned,

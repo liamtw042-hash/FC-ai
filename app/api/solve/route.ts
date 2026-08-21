@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getFormation } from '../../../src/rules/formations'
 import { detectConflicts } from '../../../src/rules/detectConflicts'
 import { SolverRejectedError, SolverUnavailableError, type WireRepeatResponse } from '../../../src/cli/solverClient'
+import { MAX_COPIES_PER_SQUAD } from '../../../src/rules/squadRules'
 import { chemistryConfig, prepare, view } from '../../lib/solve'
 import { sbc, solver, state } from '../../lib/server'
 
@@ -36,6 +37,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       chemistry: chemistryConfig(),
       allowed_rating_multisets: prepared.multisets,
       rating_prices: state().prices,
+      max_copies_per_squad: MAX_COPIES_PER_SQUAD,
       time_budget_seconds: body.seconds ?? 60,
     })
   } catch (error) {

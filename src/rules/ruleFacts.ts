@@ -17,7 +17,11 @@
  * away from the behaviour fails the build.
  */
 
-export type RuleFactKind = 'threshold_step' | 'rating_step' | 'formation_table'
+export type RuleFactKind =
+  | 'threshold_step'
+  | 'rating_step'
+  | 'formation_table'
+  | 'squad_structure'
 
 export interface RuleFact {
   id: string
@@ -155,6 +159,25 @@ export const RULE_FACTS: RuleFact[] = [
     source:
       'Every published version of the formula spells the last two steps out as ' +
       'round to nearest, then round down.',
+  },
+  {
+    id: 'squad:one_copy_per_player',
+    kind: 'squad_structure',
+    what: 'A player may appear at most once in a single squad',
+    observable: true,
+    reason:
+      'The solver used to field the same card eleven times from one stack of ' +
+      'eleven. If the game accepts a repeat, every squad this rule rejects was a ' +
+      'valid answer that was thrown away; if it rejects one, every squad built ' +
+      'before this rule existed was invalid.',
+    verified: false,
+    pendingRef: 'P-009',
+    source:
+      'Secondary sources only, and none readable at source from here: a FIFA 15 ' +
+      'FAQ says two cards of one player must go in different squads, and an FC 25 ' +
+      'forum thread is titled "Can not add duplicate player from SBC storage to my ' +
+      'squad". Neither is an in game reading and neither settles whether the limit ' +
+      'is per card version or per footballer. See PENDING P-009.',
   },
   {
     id: 'formations:slot_labels',

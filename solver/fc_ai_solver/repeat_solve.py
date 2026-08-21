@@ -22,7 +22,7 @@ from itertools import combinations
 
 from ortools.sat.python import cp_model
 
-from .challenge_model import add_challenge
+from .challenge_model import add_challenge, add_copy_limit
 from .schema import ChemistryConfig, PlacedCard, PoolCard, Requirement
 from .squad_size import SQUAD_SIZE, require_squad_size
 
@@ -78,6 +78,7 @@ def solve_variable_count(
     *,
     max_squads: int,
     min_squads: int = 1,
+    max_copies_per_squad: int | None = None,
     time_budget_seconds: float = 60.0,
     workers: int = 8,
 ) -> RepeatSolution:
@@ -126,6 +127,15 @@ def solve_variable_count(
             sum(place[j][i][s] for j in range(max_squads) for s in range(SQUAD_SIZE))
             <= card.quantity
         )
+
+    # And the per squad copy limit, through the same function every other entry
+    # point uses. This one builds its own model without requirements, so it would
+    # otherwise be the one place the rule silently did not apply.
+    for j in range(max_squads):
+        usage_j = [
+            sum(place[j][i][s] for s in range(SQUAD_SIZE)) for i in range(n)
+        ]
+        add_copy_limit(model, pool, usage_j, max_copies_per_squad)
 
     model.Add(sum(built) >= min_squads)
 
@@ -471,11 +481,13 @@ def _build_exact(
     requirements: list[Requirement],
     chemistry: ChemistryConfig | None,
     allowed_rating_multisets: list[dict[int, int]] | None,
+    max_copies_per_squad: int | None = None,
 ):
     """A model that builds exactly `squads` complete squads from one pool."""
     model = cp_model.CpModel()
     n = len(pool)
 
+    all_slot_chem: list = []
     all_usage = []
     all_place = []
     for j in range(squads):
@@ -510,18 +522,20 @@ def _build_exact(
                 if card.rating not in ratings_seen:
                     model.Add(usage[index] == 0)
 
-        add_challenge(
-            model, pool, formation_slots, usage, place, requirements, chemistry, tag=f"s{j}"
+        slot_chem, _ = add_challenge(
+            model, pool, formation_slots, usage, place, requirements, chemistry, tag=f"s{j}",
+            max_copies_per_squad=max_copies_per_squad,
         )
         all_usage.append(usage)
         all_place.append(place)
+        all_slot_chem.append(slot_chem)
 
     # No card is used twice ANYWHERE in the run.
     for i, card in enumerate(pool):
         model.Add(sum(all_usage[j][i] for j in range(squads)) <= card.quantity)
 
     model.Minimize(sum(all_usage[j][i] * pool[i].cost for j in range(squads) for i in range(n)))
-    return model, all_usage, all_place
+    return model, all_usage, all_place, all_slot_chem
 
 
 class _Search:
@@ -529,9 +543,13 @@ class _Search:
 
     def __init__(
         self, pool, slots, chemistry, multisets, budget, workers, *,
-        price_pool=None, rating_prices=None,
+        price_pool=None, rating_prices=None, max_copies_per_squad=None,
     ):
         self.pool = pool
+        # Carried so every probe model has the same rules as the solve it explains.
+        # A diagnosis run without it would report a squad as buildable that the
+        # real solve refuses, which is the worst kind of wrong answer.
+        self.max_copies_per_squad = max_copies_per_squad
         # What the market charges, when `pool` is only what is left of the club.
         self.price_pool = price_pool if price_pool is not None else pool
         # The price by rating table, when the caller has one. Best source there is.
@@ -551,9 +569,10 @@ class _Search:
 
     def run(self, count: int, requirements: list[Requirement], budget: float | None = None):
         if count <= 0:
-            return cp_model.OPTIMAL, None, None, None
-        model, all_usage, all_place = _build_exact(
-            self.pool, self.slots, count, requirements, self.chemistry, self.multisets
+            return cp_model.OPTIMAL, None, None, None, None
+        model, all_usage, all_place, all_slot_chem = _build_exact(
+            self.pool, self.slots, count, requirements, self.chemistry, self.multisets,
+            max_copies_per_squad=self.max_copies_per_squad,
         )
         solver = cp_model.CpSolver()
         solver.parameters.max_time_in_seconds = budget if budget is not None else self.budget
@@ -564,7 +583,7 @@ class _Search:
         self.solves += 1
         if status == cp_model.UNKNOWN:
             self.unknown += 1
-        return status, solver, all_usage, all_place
+        return status, solver, all_usage, all_place, all_slot_chem
 
     def feasible(self, count: int, requirements: list[Requirement], budget: float | None = None) -> bool:
         status, *_ = self.run(count, requirements, budget)
@@ -591,10 +610,10 @@ class _Search:
         # Bracket: 1, 2, 4, 8, ... until one fails or the cap is passed.
         probe = 1
         while probe <= cap:
-            status, solver, usage, place = self.run(probe, requirements, budget)
+            status, solver, usage, place, chem = self.run(probe, requirements, budget)
             if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
                 break
-            best, best_solve = probe, (solver, usage, place, status)
+            best, best_solve = probe, (solver, usage, place, status, chem)
             if probe == cap:
                 return best, best_solve
             probe *= 2
@@ -607,9 +626,9 @@ class _Search:
         low, high = best, min(probe, cap + 1)  # low feasible, high infeasible
         while high - low > 1:
             middle = (low + high) // 2
-            status, solver, usage, place = self.run(middle, requirements, budget)
+            status, solver, usage, place, chem = self.run(middle, requirements, budget)
             if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-                low, best_solve = middle, (solver, usage, place, status)
+                low, best_solve = middle, (solver, usage, place, status, chem)
             else:
                 high = middle
         return low, best_solve
@@ -1121,6 +1140,7 @@ def solve_repeat(
     chemistry: ChemistryConfig | None = None,
     allowed_rating_multisets: list[dict[int, int]] | None = None,
     rating_prices: dict[int, int] | None = None,
+    max_copies_per_squad: int | None = None,
     time_budget_seconds: float = 60.0,
     diagnosis_budget_seconds: float = 10.0,
     workers: int = 8,
@@ -1144,7 +1164,7 @@ def solve_repeat(
     requirements = list(requirements or [])
     search = _Search(
         pool, formation_slots, chemistry, allowed_rating_multisets, time_budget_seconds, workers,
-        rating_prices=rating_prices,
+        rating_prices=rating_prices, max_copies_per_squad=max_copies_per_squad,
     )
     achieved, best_solve = search.largest_feasible(requested, requirements)
 
@@ -1157,7 +1177,7 @@ def solve_repeat(
             solves_run=search.solves,
         )
 
-    solver, all_usage, all_place, status = best_solve
+    solver, all_usage, all_place, status, all_slot_chem = best_solve
     squads: list[list[PlacedCard]] = []
     total = 0
     for j in range(achieved):
@@ -1170,6 +1190,13 @@ def solve_repeat(
                             card_id=pool[i].id, slot_index=s,
                             slot_position=formation_slots[s],
                             in_position=formation_slots[s] in pool[i].positions,
+                            # None when no chemistry model was built, so "not
+                            # computed" is distinguishable from "computed as 0".
+                            chemistry=(
+                                solver.Value(all_slot_chem[j][s])
+                                if all_slot_chem and all_slot_chem[j]
+                                else None
+                            ),
                         )
                     )
                     total += pool[i].cost

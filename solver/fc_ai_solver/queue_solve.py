@@ -179,7 +179,7 @@ class QueueOutcome:
         return "\n".join(lines)
 
 
-def _placements(solver, pool, place, slots, squad_index) -> tuple[list[PlacedCard], int]:
+def _placements(solver, pool, place, slots, squad_index, slot_chem=None) -> tuple[list[PlacedCard], int]:
     placements: list[PlacedCard] = []
     cost = 0
     for s in range(SQUAD_SIZE):
@@ -191,6 +191,10 @@ def _placements(solver, pool, place, slots, squad_index) -> tuple[list[PlacedCar
                         slot_index=s,
                         slot_position=slots[s],
                         in_position=slots[s] in pool[i].positions,
+                        # None when no chemistry model was built. Reporting 0 for
+                        # "not computed" made the TypeScript re-validation report a
+                        # drift on every squad that actually had chemistry.
+                        chemistry=solver.Value(slot_chem[s]) if slot_chem else None,
                     )
                 )
                 cost += pool[i].cost
@@ -204,6 +208,7 @@ def solve_queue(
     *,
     time_budget_seconds: float = 60.0,
     rating_prices: dict[int, int] | None = None,
+    max_copies_per_squad: int | None = None,
     workers: int = 8,
     include_plan: bool = True,
 ) -> QueueOutcome:
@@ -236,6 +241,7 @@ def solve_queue(
     built = [model.NewBoolVar(f"built_{j}") for j in range(len(slots_of))]
     all_usage: list[list[cp_model.IntVar]] = []
     all_place: list[list[list[cp_model.IntVar]]] = []
+    all_slot_chem: list = []
 
     # Symmetry breaking within a repeat: identical squads fill in order.
     start = 0
@@ -274,12 +280,14 @@ def solve_queue(
         # Requirements apply only to a squad that is actually built. Gating them
         # on built[j] is what lets a queue the club cannot fully feed come back
         # partially solved rather than infeasible.
-        add_challenge(
+        slot_chem, _ = add_challenge(
             model, pool, item.formation_slots, usage, place,
             item.requirements, item.chemistry, tag=f"q{j}", active=built[j],
+            max_copies_per_squad=max_copies_per_squad,
         )
         all_usage.append(usage)
         all_place.append(place)
+        all_slot_chem.append(slot_chem)
 
     for i, card in enumerate(pool):
         model.Add(sum(all_usage[j][i] for j in range(len(slots_of))) <= card.quantity)
@@ -320,7 +328,8 @@ def solve_queue(
         for _ in range(item.count):
             if solver.Value(built[index]):
                 placements, squad_cost = _placements(
-                    solver, pool, all_place, item.formation_slots, index
+                    solver, pool, all_place, item.formation_slots, index,
+                    all_slot_chem[index],
                 )
                 squads.append(placements)
                 cost += squad_cost
@@ -335,6 +344,7 @@ def solve_queue(
             diagnosis = _diagnose_in_queue(
                 pool, items, all_usage, solver, slots_of, item, len(squads),
                 min(time_budget_seconds, 10.0), workers, rating_prices,
+                max_copies_per_squad,
             )
         outcomes.append(ItemOutcome(item, len(squads), squads, cost, diagnosis))
 
@@ -353,6 +363,7 @@ def solve_queue(
             ],
             known_achievable={o.name: o.achieved for o in outcomes},
             rating_prices=rating_prices,
+            max_copies_per_squad=max_copies_per_squad,
         )
 
     return QueueOutcome(
@@ -400,6 +411,7 @@ def _diagnose_in_queue(
     budget: float,
     workers: int,
     rating_prices: dict[int, int] | None = None,
+    max_copies_per_squad: int | None = None,
 ) -> ShortfallDiagnosis:
     """Why this item fell short IN THE QUEUE, which is a different question.
 
@@ -420,7 +432,7 @@ def _diagnose_in_queue(
     """
     alone = _Search(
         pool, target.formation_slots, target.chemistry, target.multisets, budget, workers,
-        rating_prices=rating_prices,
+        rating_prices=rating_prices, max_copies_per_squad=max_copies_per_squad,
     )
     if not alone.feasible(achieved + 1, list(target.requirements), budget):
         # Not the queue's fault. The strongest true statement is about the club.
@@ -430,6 +442,7 @@ def _diagnose_in_queue(
     residual_search = _Search(
         residual, target.formation_slots, target.chemistry, target.multisets, budget, workers,
         price_pool=pool, rating_prices=rating_prices,
+        max_copies_per_squad=max_copies_per_squad,
     )
     diagnosis = _diagnose(residual_search, achieved + 1, list(target.requirements), budget)
     rivals = sorted(

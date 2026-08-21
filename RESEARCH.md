@@ -920,6 +920,63 @@ taking the platform as an argument so they run here too. What no test on this ma
 prove is that Windows resolves `py -3` on that particular install. That is one command, and
 it is in the report rather than assumed.
 
+### 8.15 One copy of a player per squad, and a per squad line that read as coins
+
+Two things reported after a ten of ten run, and a third the first one uncovered.
+
+**THE SOLVER WOULD FIELD THE SAME CARD TWICE IN ONE SQUAD.** Five of ten squads did it from
+duplicate stacks. The extreme case is worse: a single stack of quantity eleven came back as
+a complete squad, eleven copies of one card.
+
+Implemented as `add_copy_limit`, and both halves come from the caller. `PoolCard.player_key`
+says which cards count as the same thing; `max_copies_per_squad` says how many are allowed.
+The service does not decide what makes two cards the same and does not know the limit is
+one, so the invariant holds. A pool carrying keys with no limit RAISES rather than picking a
+number.
+
+Two details worth keeping:
+
+- **Across squads is untouched, deliberately.** A stack of four 84s feeding four different
+  squads is the normal way a repeatable SBC is fed, and it is the whole point of a stack.
+- **It lives outside `add_challenge`.** `solve_variable_count` builds its own model with no
+  requirements, so it was the one entry point that would have silently skipped a rule the
+  others applied, and an answer that depends on which function was called is worse than one
+  nobody enforces.
+
+**UNVERIFIED, and it is the only rule value where being wrong makes squads INVALID rather
+than mis-scored.** Rule fact `squad:one_copy_per_player`, PENDING P-009. The evidence is
+secondary and none of it was readable at source: every relevant domain is blocked by the
+egress proxy, the same denial as RESEARCH 0.1. A FIFA 15 FAQ seen only as a search snippet
+says two cards of one player go in different squads; an FC 25 forum thread is titled "Can
+not add duplicate player from SBC storage to my squad".
+
+**The open half is what counts as the same player.** The key is the card definition today. If
+the game blocks by FOOTBALLER, a base gold beside a TOTW of the same person is also illegal,
+and that is not expressible here: a `CardDefinition` has a `defId` and a `name`, names are
+not unique between real players, and there is no player id until checkpoint 2. The fix would
+be `playerKeyOf` in `src/rules/squadRules.ts` and nothing in the solver, which is told the
+key rather than deriving it.
+
+**A per squad line printed "23950 cost" and nothing else**, which reads as coins. It is the
+weighted figure the solver minimises, and with the untradeable weighting applied it can be a
+fiftieth of what the cards list at. The summary said so; the squad lines did not. Same class
+as RESEARCH 8.8. Every per squad line now prints coins spent, value burned and the weighted
+figure, each labelled, in the command line and in the UI.
+
+**AND THE FIRST FIX SURFACED A THIRD PROBLEM.** With duplicates gone, squads started having
+real chemistry, and the cross implementation guard began reporting a drift on every one of
+them: "the solver scored 0 chemistry, the rules engine makes it 1".
+
+It was a false positive with a real cause. `PlacedCard.chemistry` defaulted to `0`, and
+repeat and queue mode never populated it, so **"not computed" and "computed as zero" were the
+same value**. That is the lossy reduction class again, in the guard whose whole job is to
+catch drift. A guard that cries wolf gets ignored, which would have cost the real thing.
+
+`chemistry` is now `int | None`, repeat and queue mode read the values back out of their
+models, and `rebuild` compares only where the service actually reported one. Verified by
+constructing the exact squad that produced the false positive, two clubmates in position
+among nine strangers out of position, and confirming both engines make it 2.
+
 ## 9. Still open
 
 | Ref | Item | Status |

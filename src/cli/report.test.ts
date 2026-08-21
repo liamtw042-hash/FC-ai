@@ -50,6 +50,8 @@ function squadOf(ratings: number[], clubs: string[], chemistry: number[]): WireS
       chemistry: chemistry[index] ?? 0,
     })),
     cost: 0,
+    coins_spent: 0,
+    value_burned: 0,
   }
 }
 
