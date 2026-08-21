@@ -78,10 +78,7 @@ def repeat_out(outcome: RepeatOutcome, pool) -> RepeatResponse:
     return RepeatResponse(
         requested=outcome.requested,
         achieved=outcome.achieved,
-        squads=[
-            SquadOut(placements=squad, cost=_squad_cost(pool, squad))
-            for squad in outcome.squads
-        ],
+        squads=[_squad_out(pool, squad) for squad in outcome.squads],
         total_cost=outcome.total_cost,
         coins_spent=coins,
         value_burned=burned,
@@ -95,9 +92,15 @@ def repeat_out(outcome: RepeatOutcome, pool) -> RepeatResponse:
     )
 
 
-def _squad_cost(pool, squad) -> int:
-    by_id = {card.id: card for card in pool}
-    return sum(by_id[placement.card_id].cost for placement in squad)
+def _squad_out(pool, squad) -> SquadOut:
+    """One squad, with its three figures kept apart.
+
+    A per squad line used to print "23950 cost" and nothing else, which reads as
+    coins. It is the weighted figure the solver minimises and can be a fiftieth of
+    what the cards list at. The summary said so; the squad lines did not.
+    """
+    cost, coins, burned = tally(pool, [squad])
+    return SquadOut(placements=squad, cost=cost, coins_spent=coins, value_burned=burned)
 
 
 def queue_out(outcome: QueueOutcome, pool) -> QueueResponse:
@@ -110,10 +113,7 @@ def queue_out(outcome: QueueOutcome, pool) -> QueueResponse:
                 priority=item.item.priority,
                 requested=item.item.count,
                 achieved=item.achieved,
-                squads=[
-                    SquadOut(placements=squad, cost=_squad_cost(pool, squad))
-                    for squad in item.squads
-                ],
+                squads=[_squad_out(pool, squad) for squad in item.squads],
                 cost=item.cost,
                 diagnosis=diagnosis_out(item.diagnosis),
             )

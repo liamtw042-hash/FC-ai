@@ -51,6 +51,52 @@ def _group_by(pool: list[PoolCard], key) -> dict[str, list[int]]:
     return groups
 
 
+def add_copy_limit(
+    model: cp_model.CpModel,
+    pool: list[PoolCard],
+    usage: list[cp_model.IntVar],
+    max_copies_per_squad: int | None,
+) -> None:
+    """At most `max_copies_per_squad` cards sharing a `player_key`, in ONE squad.
+
+    Lives here rather than inside `add_challenge` because `solve_variable_count`
+    builds its own model without requirements, and a squad rule that only some
+    entry points apply is worse than one nobody applies: it makes the answer
+    depend on which function you happened to call.
+
+    BOTH HALVES COME FROM THE CALLER. This service does not decide what makes two
+    cards the same thing, and does not know that the limit is one. It knows only
+    that keys without a limit are something left unsaid, and raises rather than
+    picking a number.
+
+    ACROSS squads is deliberately untouched. A stack of four 84s feeding four
+    different squads is the normal way an SBC grind works.
+    """
+    keyed = [index for index, card in enumerate(pool) if card.player_key is not None]
+    if keyed and max_copies_per_squad is None:
+        raise UnsupportedRequirement(
+            "this pool carries player_key values, which only mean something alongside "
+            "a per squad copy limit, and none was supplied. Send max_copies_per_squad, "
+            "or send a pool with no keys."
+        )
+    if max_copies_per_squad is None:
+        return
+    if max_copies_per_squad < 1:
+        raise UnsupportedRequirement(
+            f"max_copies_per_squad must be at least 1, got {max_copies_per_squad}"
+        )
+    groups: dict[str, list[int]] = {}
+    for index in keyed:
+        groups.setdefault(pool[index].player_key or "", []).append(index)
+    for indices in groups.values():
+        # Skipped where it cannot bind: one card of quantity 1 can never exceed a
+        # limit of 1, and a model carrying six hundred vacuous constraints is
+        # slower for nothing.
+        reachable = sum(pool[i].quantity for i in indices)
+        if reachable > max_copies_per_squad:
+            model.Add(sum(usage[i] for i in indices) <= max_copies_per_squad)
+
+
 def add_challenge(
     model: cp_model.CpModel,
     pool: list[PoolCard],
@@ -61,6 +107,7 @@ def add_challenge(
     chemistry: ChemistryConfig | None,
     tag: str = "s0",
     active: cp_model.IntVar | None = None,
+    max_copies_per_squad: int | None = None,
 ):
     """Adds every requirement for one challenge. Returns (slot_chem, squad_chem).
 
@@ -70,12 +117,23 @@ def add_challenge(
     club cannot fully feed infeasible rather than partially solved. Every
     requirement constraint is therefore gated on `active`. Without it the behaviour
     is unchanged, which is what the single and repeat solvers want.
+
+    `max_copies_per_squad` limits how many times cards sharing a `player_key` may
+    appear in ONE squad. Both halves come from the caller: this service does not
+    decide what makes two cards the same thing, and does not know that the limit
+    is one. It only knows that a caller who supplies keys and no limit has left
+    something unsaid, and raises rather than picking a number.
+
+    ACROSS squads is deliberately untouched. A stack of four 84s feeding four
+    different squads is the normal way an SBC grind works.
     """
 
     def enforce(constraint):
         if active is not None:
             constraint.OnlyEnforceIf(active)
         return constraint
+
+    add_copy_limit(model, pool, usage, max_copies_per_squad)
     clubs = _group_by(pool, lambda c: c.club)
     leagues = _group_by(pool, lambda c: c.league)
     nations = _group_by(pool, lambda c: c.nation)

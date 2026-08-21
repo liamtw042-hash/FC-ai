@@ -37,6 +37,12 @@ class PoolCard(BaseModel):
     is_evolved: bool = False
     is_womens: bool = False
     quantity: int = Field(default=1, ge=1)
+    # Cards sharing this key are the SAME THING for the purpose of the per squad
+    # copy limit below. What "the same thing" means is the caller's decision and
+    # is never made here: the rules engine sets it, currently to the card
+    # definition id. None means the caller supplied no grouping, and then no copy
+    # limit is applied to this card.
+    player_key: str | None = None
     # Cost of consuming ONE copy. Already includes the duplicate and storage
     # weightings from the cost model, so this service just adds numbers up.
     # NOT A COIN PRICE. A weighted cost can be 50 for a card worth 4000, and
@@ -136,6 +142,11 @@ class SolveRequest(BaseModel):
     time_budget_seconds: float = 5.0
     # Reproducibility. CP-SAT is deterministic for a fixed worker count.
     workers: int = 8
+    # How many cards sharing a player_key may appear in ONE squad. Supplied by
+    # the caller, because whether a footballer may be fielded twice is a game rule
+    # and this service holds none. None with keyed cards in the pool is an error,
+    # not a licence to pick a number.
+    max_copies_per_squad: int | None = None
     # On failure, run the checkpoint 12 diagnosis and put its answer in `reason`.
     # Default ON: "no squad in the available pool satisfies these requirements" is
     # exactly the shrug that diagnosis exists to replace, and a caller who wants
@@ -154,7 +165,12 @@ class PlacedCard(BaseModel):
     in_position: bool
     # Reported so the TypeScript engine can re-derive it and compare. A mismatch
     # means the two implementations have drifted and must be surfaced, not hidden.
-    chemistry: int = 0
+    #
+    # None means THIS SERVICE DID NOT COMPUTE IT, which is not the same as zero.
+    # Repeat and queue mode used to leave it at the old default of 0, so every
+    # squad with real chemistry was reported as a drift between the two engines
+    # when nothing had drifted. A guard that cries wolf gets ignored.
+    chemistry: int | None = None
 
 
 class SolveResponse(BaseModel):
@@ -182,6 +198,7 @@ class RepeatRequest(BaseModel):
     chemistry: ChemistryConfig | None = None
     allowed_rating_multisets: list[dict[int, int]] | None = None
     rating_prices: dict[int, int] | None = None
+    max_copies_per_squad: int | None = None
     time_budget_seconds: float = 60.0
     diagnosis_budget_seconds: float = 10.0
     workers: int = 8
@@ -205,6 +222,7 @@ class QueueRequest(BaseModel):
     pool: list[PoolCard]
     items: list[QueueItemRequest]
     rating_prices: dict[int, int] | None = None
+    max_copies_per_squad: int | None = None
     time_budget_seconds: float = 60.0
     workers: int = 8
     include_plan: bool = True
@@ -241,7 +259,10 @@ class DiagnosisOut(BaseModel):
 
 class SquadOut(BaseModel):
     placements: list[PlacedCard]
+    # The WEIGHTED figure the solver minimised. Not coins. The two below are.
     cost: int
+    coins_spent: int = 0
+    value_burned: int = 0
 
 
 class RepeatResponse(BaseModel):
@@ -289,6 +310,7 @@ class DiagnoseRequest(BaseModel):
     chemistry: ChemistryConfig | None = None
     multisets: list[dict[int, int]] | None = None
     count: int = Field(default=1, ge=1)
+    max_copies_per_squad: int | None = None
     # From the rules engine's detectConflicts. Passed through, never derived here.
     universal_conflicts: list[str] = Field(default_factory=list)
     time_budget_seconds: float = 10.0

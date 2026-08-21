@@ -144,12 +144,16 @@ export interface WirePlacement {
   slot_index: number
   slot_position: string
   in_position: boolean
-  chemistry: number
+  /** Null when the service did not compute it. NOT the same as zero. */
+  chemistry: number | null
 }
 
 export interface WireSquad {
   placements: WirePlacement[]
+  /** The weighted figure the solver minimised. NOT coins. */
   cost: number
+  coins_spent: number
+  value_burned: number
 }
 
 export interface WireQueueItem {

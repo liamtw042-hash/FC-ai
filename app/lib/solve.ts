@@ -9,6 +9,7 @@
 
 import 'server-only'
 
+import { calculateChemistry } from '../../src/rules/chemistry'
 import { getFormation } from '../../src/rules/formations'
 import { takeRatingCombinations } from '../../src/rules/ratingCombinations'
 import { buildChemistryConfig } from '../../src/solver/chemistryConfig'
@@ -59,7 +60,10 @@ export function prepare(definition: SbcDefinition, combinations = 60): PreparedS
 export interface SquadView {
   rating: number
   chemistry: number
+  /** The weighted figure the solver minimised. NOT coins. The two below are. */
   cost: number
+  coinsSpent: number
+  valueBurned: number
   players: {
     /**
      * The owned stack this came from. Carried because the submission write back
@@ -95,12 +99,21 @@ export function view(
 ): SquadView {
   const rebuilt = rebuild(squad, formation, byId, requirements)
   const slots = getFormation(formation).slots
+  // The ENGINE's per player values, computed once. The service may not have
+  // computed any, and where it did, the engine is the authoritative one.
+  const perPlayer = new Map(
+    calculateChemistry(rebuilt.squad.players).players.map((entry) => [
+      entry.slotIndex,
+      entry.chemistry,
+    ]),
+  )
   return {
     rating: rebuilt.rating,
     chemistry: rebuilt.chemistry,
     cost: squad.cost,
-    players: rebuilt.squad.players.map((player, index) => {
-      const placement = squad.placements.find((entry) => entry.slot_index === player.slotIndex)
+    coinsSpent: squad.coins_spent,
+    valueBurned: squad.value_burned,
+    players: rebuilt.squad.players.map((player) => {
       return {
         cardId: player.card.owned.id,
         slot: slots[player.slotIndex] ?? player.slotPosition,
@@ -109,7 +122,7 @@ export function view(
         club: player.card.definition.club,
         league: player.card.definition.league,
         nation: player.card.definition.nation,
-        chemistry: placement?.chemistry ?? 0,
+        chemistry: perPlayer.get(player.slotIndex) ?? 0,
         inPosition: player.card.effectivePositions.includes(player.slotPosition),
       }
     }),

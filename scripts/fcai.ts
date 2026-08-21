@@ -41,6 +41,7 @@ import { formatAvailability } from '../src/rules/exclusions'
 import { takeRatingCombinations } from '../src/rules/ratingCombinations'
 import { resolveClub } from '../src/cli/pool'
 import { buildChemistryConfig } from '../src/solver/chemistryConfig'
+import { MAX_COPIES_PER_SQUAD } from '../src/rules/squadRules'
 import {
   collectUnverified,
   formatStartupWarning,
@@ -466,6 +467,7 @@ async function solve(name: string | undefined, flags: Map<string, string>, clien
     chemistry: buildChemistryConfig(),
     allowed_rating_multisets: prepared.multisets,
     rating_prices: prepared.state.prices,
+    max_copies_per_squad: MAX_COPIES_PER_SQUAD,
     time_budget_seconds: Number(flags.get('time') ?? 60),
   }
 
@@ -491,7 +493,13 @@ async function solve(name: string | undefined, flags: Map<string, string>, clien
   }
   response.squads.forEach((squad, index) => {
     const rebuilt = rebuild(squad, sbc.formation, prepared.byId, sbc.requirements)
-    process.stdout.write(formatSquad(rebuilt, index + 1, squad.cost) + '\n')
+    process.stdout.write(
+      formatSquad(rebuilt, index + 1, {
+        cost: squad.cost,
+        coinsSpent: squad.coins_spent,
+        valueBurned: squad.value_burned,
+      }) + '\n',
+    )
     process.stdout.write(formatRequirements(rebuilt.results) + '\n')
   })
   if (response.diagnosis !== null) {
@@ -545,6 +553,7 @@ async function queue(file: string | undefined, flags: Map<string, string>, clien
       pool: pool.cards,
       items,
       rating_prices: state.prices,
+      max_copies_per_squad: MAX_COPIES_PER_SQUAD,
       time_budget_seconds: Number(flags.get('time') ?? 120),
     })
   } catch (error) {
@@ -559,7 +568,13 @@ async function queue(file: string | undefined, flags: Map<string, string>, clien
     item.squads.forEach((squad, index) => {
       if (sbc === undefined) return
       const rebuilt = rebuild(squad, sbc.formation, byId, sbc.requirements)
-      process.stdout.write(formatSquad(rebuilt, index + 1, squad.cost) + '\n')
+      process.stdout.write(
+        formatSquad(rebuilt, index + 1, {
+          cost: squad.cost,
+          coinsSpent: squad.coins_spent,
+          valueBurned: squad.value_burned,
+        }) + '\n',
+      )
       process.stdout.write(formatRequirements(rebuilt.results) + '\n')
     })
     if (item.diagnosis !== null) process.stdout.write(formatDiagnosis(item.diagnosis) + '\n')

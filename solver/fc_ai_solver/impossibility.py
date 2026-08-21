@@ -113,6 +113,7 @@ def diagnose_impossibility(
     chemistry: ChemistryConfig | None = None,
     multisets: list[dict[int, int]] | None = None,
     count: int = 1,
+    max_copies_per_squad: int | None = None,
     universal_conflicts: list[str] | None = None,
     achievable: int | None = None,
     time_budget_seconds: float = 10.0,
@@ -135,7 +136,10 @@ def diagnose_impossibility(
         return Impossibility("universal", count, universal, None)
 
     requirements = list(requirements or [])
-    search = _Search(pool, formation_slots, chemistry, multisets, time_budget_seconds, workers)
+    search = _Search(
+        pool, formation_slots, chemistry, multisets, time_budget_seconds, workers,
+        max_copies_per_squad=max_copies_per_squad,
+    )
 
     if achievable is None:
         if search.feasible(count, requirements, time_budget_seconds):

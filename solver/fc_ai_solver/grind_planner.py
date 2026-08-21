@@ -518,6 +518,7 @@ def _diagnose_depths(
     budget: float,
     max_depth_probes: int | None,
     rating_prices: dict[int, int] | None = None,
+    max_copies_per_squad: int | None = None,
 ) -> tuple[list[DepthBlock], list[SupplyShortfall], int]:
     """Diagnose each squad depth separately, not just the first unbuildable one.
 
@@ -530,7 +531,7 @@ def _diagnose_depths(
 
     search = _Search(
         pool, challenge.formation_slots, challenge.chemistry, challenge.multisets, budget, 8,
-        rating_prices=rating_prices,
+        rating_prices=rating_prices, max_copies_per_squad=max_copies_per_squad,
     )
     requirements = list(challenge.requirements)
     # Default: probe every squad that was actually asked for. A fixed cap of four
@@ -597,6 +598,7 @@ def plan_grind(
     max_extra_steps: int = 3,
     known_achievable: dict[str, int] | None = None,
     rating_prices: dict[int, int] | None = None,
+    max_copies_per_squad: int | None = None,
     time_budget_seconds: float = 5.0,
     max_depth_probes: int | None = None,
 ) -> GrindPlan:
@@ -700,7 +702,7 @@ def plan_grind(
             pinned[challenge.name] = achieved
             depths, conditional, probed_to = _diagnose_depths(
                 pool, challenge, achieved, time_budget_seconds, max_depth_probes,
-                rating_prices,
+                rating_prices, max_copies_per_squad,
             )
             blocks.append(
                 RequirementBlock(

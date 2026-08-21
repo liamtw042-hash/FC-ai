@@ -61,6 +61,7 @@ def solve_repeat_endpoint(request: RepeatRequest) -> RepeatResponse:
             chemistry=request.chemistry,
             allowed_rating_multisets=request.allowed_rating_multisets,
             rating_prices=request.rating_prices,
+            max_copies_per_squad=request.max_copies_per_squad,
             time_budget_seconds=request.time_budget_seconds,
             diagnosis_budget_seconds=request.diagnosis_budget_seconds,
             workers=request.workers,
@@ -101,6 +102,7 @@ def solve_queue_endpoint(request: QueueRequest) -> QueueResponse:
             items,
             time_budget_seconds=request.time_budget_seconds,
             rating_prices=request.rating_prices,
+            max_copies_per_squad=request.max_copies_per_squad,
             workers=request.workers,
             include_plan=request.include_plan,
         )
@@ -128,6 +130,7 @@ def diagnose_endpoint(request: DiagnoseRequest) -> DiagnoseResponse:
             chemistry=request.chemistry,
             multisets=request.multisets,
             count=request.count,
+            max_copies_per_squad=request.max_copies_per_squad,
             universal_conflicts=request.universal_conflicts,
             time_budget_seconds=request.time_budget_seconds,
             workers=request.workers,

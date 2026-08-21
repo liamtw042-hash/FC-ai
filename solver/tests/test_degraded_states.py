@@ -311,3 +311,90 @@ class TestTheSmallerStringsThatStillMakeClaims:
         )
         assert diagnosis.blocking == []
         assert diagnosis.mode == "unexplained"
+
+
+class TestChemistryThatWasNotComputed:
+    """`chemistry` defaulted to 0 and repeat and queue mode never set it, so "not
+    computed" and "computed as zero" were the same value. The TypeScript guard
+    that exists to catch a drift between the two engines then reported one on
+    every squad that had any chemistry at all."""
+
+    def chem_config(self):
+        from fc_ai_solver import ChemistryConfig, ChemistryContribution
+
+        return ChemistryConfig(
+            club_thresholds=[(2, 1), (4, 2), (7, 3)],
+            nation_thresholds=[(2, 1), (5, 2), (8, 3)],
+            league_thresholds=[(3, 1), (5, 2), (8, 3)],
+            contributions={"rare": ChemistryContribution(club=1, league=1, nation=1)},
+            max_player_chemistry=3,
+            max_squad_chemistry=33,
+        )
+
+    def linked(self) -> list[PoolCard]:
+        """Two clubmates who can play their slots, nine strangers who cannot.
+
+        This is the shape that produced the false positive: the two in position
+        clubmates are worth 1 each, and every other player is gated to 0.
+        """
+        pool = [
+            PoolCard(id="mate1", rating=84, positions=["CM"], nation="Na", league="Liga",
+                     club="Estrela", card_type="rare", quantity=1, cost=100,
+                     market_price=100, player_key="mate1"),
+            PoolCard(id="mate2", rating=84, positions=["ST"], nation="Nb", league="Liga",
+                     club="Estrela", card_type="rare", quantity=1, cost=100,
+                     market_price=100, player_key="mate2"),
+        ]
+        for i in range(9):
+            pool.append(
+                PoolCard(id=f"s{i}", rating=84, positions=["GK"], nation=f"N{i}",
+                         league=f"L{i}", club=f"C{i}", card_type="rare", quantity=1,
+                         cost=100, market_price=100, player_key=f"s{i}")
+            )
+        return pool
+
+    # A chemistry requirement, because nothing else makes the solver place the two
+    # clubmates in position: every card costs the same, so a squad worth 0 is an
+    # equally good answer and the first version of this test passed by luck.
+    NEEDS_TWO = [Requirement(type="teamChemistry", op="min", value=2)]
+
+    def test_repeat_mode_REPORTS_chemistry_rather_than_leaving_it_at_zero(self):
+        outcome = solve_repeat(
+            self.linked(), FORMATION, requested=1, chemistry=self.chem_config(),
+            requirements=list(self.NEEDS_TWO), max_copies_per_squad=1,
+        )
+        assert outcome.achieved == 1, "the squad was not built, so nothing was forced"
+        reported = [p.chemistry for p in outcome.squads[0]]
+        assert None not in reported, "chemistry was left unreported"
+        assert sum(reported) == 2
+
+    def test_and_reports_None_when_no_chemistry_model_was_built(self):
+        # No chemistry config, so there is nothing to report and it says so rather
+        # than saying zero.
+        outcome = solve_repeat(
+            self.linked(), FORMATION, requested=1, max_copies_per_squad=1,
+        )
+        assert outcome.achieved == 1
+        assert all(p.chemistry is None for p in outcome.squads[0])
+
+    def test_queue_mode_does_the_same(self):
+        outcome = solve_queue(
+            self.linked(),
+            [QueueItem(name="a", formation_slots=FORMATION, chemistry=self.chem_config(),
+                       requirements=list(self.NEEDS_TWO))],
+            max_copies_per_squad=1, include_plan=False,
+        )
+        assert outcome.squads_built == 1
+        reported = [p.chemistry for p in outcome.items[0].squads[0]]
+        assert None not in reported
+        assert sum(reported) == 2
+
+    def test_single_solve_agrees_on_the_same_squad(self):
+        # The two engines have to make it 2, or the guard was right and this is a
+        # real drift rather than a reporting gap.
+        response = solve_single(SolveRequest(
+            pool=self.linked(), formation_slots=FORMATION, chemistry=self.chem_config(),
+            requirements=list(self.NEEDS_TWO), max_copies_per_squad=1,
+        ))
+        assert response.status in ("optimal", "feasible")
+        assert response.squad_chemistry == 2

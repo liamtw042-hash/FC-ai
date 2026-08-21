@@ -5,7 +5,10 @@ import { useState } from 'react'
 export interface SquadView {
   rating: number
   chemistry: number
+  /** The weighted figure the solver minimised. NOT coins. The two below are. */
   cost: number
+  coinsSpent: number
+  valueBurned: number
   players: {
     /** The owned stack, so the submission write back takes the right one. */
     cardId: string
@@ -61,8 +64,15 @@ export default function SquadCard({
   return (
     <div className="border border-neutral-900 p-2 text-xs">
       <div className="flex flex-wrap items-baseline gap-3">
+        {/* Three figures, each labelled. The bare "N cost" this replaced read as
+            coins, and it is the weighted figure the solver minimised. */}
         <span className="font-bold text-neutral-200">
-          Squad {index}: rating {squad.rating}, chemistry {squad.chemistry}, {squad.cost} cost
+          Squad {index}: rating {squad.rating}, chemistry {squad.chemistry},{' '}
+          {squad.coinsSpent} coins spent, {squad.valueBurned} value burned
+          <span className="font-normal text-neutral-500">
+            {' '}
+            (solver cost {squad.cost}, weighted, not coins)
+          </span>
         </span>
         <button
           type="button"
